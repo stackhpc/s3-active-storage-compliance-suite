@@ -4,7 +4,7 @@ Unit tests and performance benchmarking tools for implementations of the s3-acti
 
 ## Outline 
 
-The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced with a URL pointing to a functional implementation of the proxy service at a later date.
+The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced by a URL pointing to a functional implementation of the proxy service at a later date.
 
 ---
 
@@ -36,7 +36,9 @@ from within the project directory.
 
 ### Implementation details
 
-Test data is generated as numpy arrays and then uploaded to the configured S3 source in binary format. Requests are then made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification. Test cases are procedurally generated to cover various combinations of reduction operation, data type, data shape and data slice specifications. 
+Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification.
+
+There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice specifications. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
 
 
 ---
