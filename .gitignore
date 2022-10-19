@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# My addition - file for testing code snippets
+scratchspace.py
