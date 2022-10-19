@@ -28,7 +28,7 @@ To run the compliance test suite on your own implementation of an S3 active stor
 
 - `PROXY_URL` - The address for your active storage proxy implementation (e.g. `https://s3-proxy.example.com/`)
 
-The compliance test suite can the be running by calling 
+The compliance test suite can then be run by calling 
 ```
 pytest
 ```
@@ -36,9 +36,9 @@ from within the project directory.
 
 ### Implementation details
 
-Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification.
+Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to the active storage proxy and the proxy response is compared to the expected result based on the agreed API specification and the generated test arrays.
 
-There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice specifications. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
+There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice parameters. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
 
 
 ---
