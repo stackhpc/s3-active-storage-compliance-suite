@@ -36,7 +36,7 @@ from within the project directory.
 
 ### Implementation details
 
-Test data is generated as numpy arrays and then uploaded to the configured S3 source in binary format. The requests are then made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification.   
+Test data is generated as numpy arrays and then uploaded to the configured S3 source in binary format. Requests are then made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification. Test cases are procedurally generated to cover various combinations of reduction operation, data type, data shape and data slice specifications. 
 
 
 ---
