@@ -4,7 +4,7 @@ Unit tests and performance benchmarking tools for implementations of the s3-acti
 
 ## Outline 
 
-The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock request responses. These mocks can be replaced with a URL pointing to a functional implementation of the active storage proxy service at a later date.
+The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced with a URL pointing to a functional implementation of the proxy service at a later date.
 
 ---
 
