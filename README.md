@@ -6,8 +6,6 @@ Unit tests and performance benchmarking tools for implementations of the s3-acti
 
 The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced by a URL pointing to a functional implementation of the proxy service at a later date.
 
----
-
 ## Compliance Suite Usage
 
 To set up the testing environment run:
@@ -41,7 +39,6 @@ Test data is currently generated as numpy arrays and then uploaded to the config
 There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice parameters. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
 
 
----
 
 ## Performance Benchmarking
 
