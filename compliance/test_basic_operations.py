@@ -10,14 +10,16 @@ from .mocks import MockResponse
 
 
 def generate_test_data(operation, request_data):
-    
+
+    """ Creates some test data and uploads it to the configured S3 source for later requests through the active proxy """
+
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
     #Generate some test data (multiply random array by 100 so that int dtypes don't all round down to zeros)
     dtype = request_data["dtype"]
     data = (100*np.random.rand(*request_data['shape'])).astype(dtype)
     #Add data to s3 bucket so that proxy can use it
-    upload_to_s3(s3_client, data, f'test-{dtype}.bin')
+    upload_to_s3(s3_client, data, f"test--dtype-{dtype}--shape-{request_data['shape']}--selection-{request_data['selection']}.bin")
     #Perform main operation (after slicing if necessary)
     if request_data['selection']:
         #Create pythonic slices object (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
@@ -35,8 +37,10 @@ def generate_test_data(operation, request_data):
 @pytest.mark.parametrize('shape, selection', [([10], None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
 def test_basic_operation(monkeypatch, operation, dtype, shape, selection):
 
+    """ Test basic functionality of reduction operations on various types of input data """
+
     request_data = {
-        'source': S3_SOURCE,
+        'source': S3_SOURCE, # + "path/to/object" ?
         'dtype': dtype,
         'offset': 0,
         'size': 100,
