@@ -4,7 +4,7 @@ Unit tests and performance benchmarking tools for implementations of the s3-acti
 
 ## Outline 
 
-The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced with a URL pointing to a functional implementation of the proxy service at a later date.
+The working plan for this repo is that, since we don't have an up-to-date reference implementation which conforms to the recently revised API spec, the default behaviour initially will be to mock responses from the active storage proxy. These mocks can be replaced by a URL pointing to a functional implementation of the proxy service at a later date.
 
 ---
 
@@ -20,7 +20,7 @@ pip install -r requirements.txt
 
 To run the compliance test suite on your own implementation of an S3 active storage client, edit the following variables in `compliance/config.py`:
 
-- `S3_SOURCE` - The address of your S3 store (e.g. `https://s3-proxy.com/`). If you don't have an existing S3 store you can set up a temporary minio docker container by running `scripts/run-minio.sh` in a separate terminal, in which case you should leave the S3_SOURCE as localhost.
+- `S3_SOURCE` - The address of your S3 store (e.g. `https://s3-proxy.com/`). If you don't have an existing S3 store you can set up a temporary minio docker container by running `scripts/run-minio.sh` in a separate terminal, in which case you should leave the S3 source as localhost.
   
 - `AWS_ID` - The AWS access key ID used to authenticate with the S3 source (defaults to 'minioadmin' for the minio docker container).
 
@@ -28,7 +28,7 @@ To run the compliance test suite on your own implementation of an S3 active stor
 
 - `PROXY_URL` - The address for your active storage proxy implementation (e.g. `https://s3-proxy.example.com/`)
 
-The compliance test suite can the be running by calling 
+The compliance test suite can then be run by calling 
 ```
 pytest
 ```
@@ -36,7 +36,9 @@ from within the project directory.
 
 ### Implementation details
 
-Test data is generated as numpy arrays and then uploaded to the configured S3 source in binary format. Requests are then made to active storage proxy and the proxy response is compared to the expected result based on the generated test data and the agreed API specification. Test cases are procedurally generated to cover various combinations of reduction operation, data type, data shape and data slice specifications. 
+Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to the active storage proxy and the proxy response is compared to the expected result based on the agreed API specification and the generated test arrays.
+
+There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice parameters. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
 
 
 ---
