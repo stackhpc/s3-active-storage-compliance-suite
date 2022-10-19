@@ -130,3 +130,7 @@ dmypy.json
 
 # My addition - file for testing code snippets
 scratchspace.py
+
+# Minio generated files
+testdata/
+scripts/testdata/
