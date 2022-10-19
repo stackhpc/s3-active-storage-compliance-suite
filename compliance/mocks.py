@@ -1,6 +1,8 @@
 
 
 class MockResponse:
+
+    """ Class used for mocking responses from the active storage proxy implementation in order to facilitate development of this test suite """
     
     def __init__(self, status_code: int, operation_result) -> None:
         # Template response attributes
