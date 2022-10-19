@@ -20,13 +20,13 @@ pip install -r requirements.txt
 
 To run the compliance test suite on your own implementation of an S3 active storage client, edit the following variables in `compliance/config.py`:
 
-- `S3_SOURCE` - The address of your S3 store (e.g. 'https://s3-proxy.com/'). If you don't have an existing S3 store you can set up a temporary minio docker container by running the shell script `scripts/run-minio.sh` in a separate terminal, in which case you should leave the S3_SOURCE as localhost.
+- `S3_SOURCE` - The address of your S3 store (e.g. `https://s3-proxy.com/`). If you don't have an existing S3 store you can set up a temporary minio docker container by running the shell script `scripts/run-minio.sh` in a separate terminal, in which case you should leave the S3_SOURCE as localhost.
   
 - `AWS_ID` - The AWS access key ID used to authenticate with the S3 source (defaults to 'minioadmin' for the minio docker container).
 
 - `AWS_PASSWORD` - The secret access key used to authenticate with the S3 source (defaults to 'minioadmin' for the minio docker container)
 
-- `PROXY_URL` - The address for your active storage proxy implementation (e.g. 'https://s3-proxy.example.com/')
+- `PROXY_URL` - The address for your active storage proxy implementation (e.g. `https://s3-proxy.example.com/`)
 
 The compliance test suite can the be running by calling 
 ```
