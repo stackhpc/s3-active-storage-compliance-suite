@@ -1,5 +1,5 @@
 
-import os
+import io
 from botocore.exceptions import ClientError
 import numpy as np
 from compliance.config import BUCKET_NAME
@@ -14,15 +14,8 @@ def upload_to_s3(s3_client, arr: np.array, filename: str) -> None:
     except ClientError:
         pass #Bucket already exists
 
-    #Write file to disk, upload it to S3, then remove on-disk file
-    try:
-        arr.tofile(filename)
-        s3_client.upload_file(filename, BUCKET_NAME, filename.replace('.npy', '.bin'))
-    finally:
-        try:
-            os.remove(filename)
-        except FileNotFoundError:
-            pass
+    stream = io.BytesIO(arr.tobytes())
+    s3_client.upload_fileobj(stream, BUCKET_NAME, filename)
 
     return
 
