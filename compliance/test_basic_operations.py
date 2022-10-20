@@ -1,9 +1,8 @@
 
-from os import PRIO_PGRP
-from urllib import request
 import pytest
 import requests
 import numpy as np
+
 from .config import s3_client, S3_SOURCE, PROXY_URL, BUCKET_NAME, ALLOWED_DTYPES, OPERATION_FUNCS
 from .utils import upload_to_s3, fetch_from_s3
 from .mocks import MockResponse
