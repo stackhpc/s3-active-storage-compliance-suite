@@ -21,6 +21,9 @@ def upload_to_s3(s3_client, arr: np.array, filename: str) -> None:
 
 def fetch_from_s3(s3_client, filename: str) -> bytes:
     """ Fetches data from configured S3 source and returns the content as raw bytes """
-    response = s3_client.get_object(Bucket=BUCKET_NAME, Key=filename)
-    content = response['Body'].read()
-    return content
+    try:
+        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=filename)
+        content = response['Body'].read()
+        return content
+    except s3_client.exceptions.NoSuchKey:
+        raise FileNotFoundError(f"File '{filename}' not found in S3 bucket '{BUCKET_NAME}'")
