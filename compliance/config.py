@@ -22,13 +22,10 @@ s3_client = boto3.client(
 
 ALLOWED_DTYPES = ['int32', 'int64', 'float32', 'float64', 'uint32', 'uint64']
 
-OPERATION_TO_NUMPY = {
+OPERATION_FUNCS = {
     'select': lambda arr: arr,
     'sum': lambda arr: np.sum(arr, dtype=arr.dtype),
     "count": lambda arr: np.prod(arr.shape, dtype = np.int64),
     'max': np.max,
     'min': np.min,
 }
-
-# TEST_SHAPES = [[20, 5], [10], [3, 3, 3]]
-# TEST_SELECTIONS = 
