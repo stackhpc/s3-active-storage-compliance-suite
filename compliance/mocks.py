@@ -10,9 +10,9 @@ class MockResponse:
         self.content = operation_result.tobytes()
         self.headers = {
             'content-type': 'application/octet-stream',
-            'content-length': operation_result.size,
+            'content-length': str(len(self.content)),
             'x-activestorage-dtype': str(operation_result.dtype),
-            'x-activestorage-shape': list(operation_result.shape),
+            'x-activestorage-shape': str(list(operation_result.shape)),
         }
         return
 

@@ -1,18 +1,23 @@
 
 import io
+import pytest
 from botocore.exceptions import ClientError
 import numpy as np
-from compliance.config import BUCKET_NAME
+from compliance.config import s3_client, BUCKET_NAME
 
-def upload_to_s3(s3_client, arr: np.array, filename: str) -> None:
 
-    """ Upload a numpy array in binary format to an S3 storage bucket """
+def ensure_test_bucket_exists():
 
     #Create required bucket if it doesn't yet exist
     try:
         bucket = s3_client.create_bucket(Bucket=BUCKET_NAME)
     except ClientError:
         pass #Bucket already exists
+
+
+def upload_to_s3(s3_client, arr: np.array, filename: str) -> None:
+
+    """ Upload a numpy array in binary format to an S3 storage bucket """
 
     stream = io.BytesIO(arr.tobytes())
     s3_client.upload_fileobj(stream, BUCKET_NAME, filename)
