@@ -4,7 +4,7 @@ import requests
 import pytest
 import numpy as np
 
-from .config import s3_client, S3_SOURCE, BUCKET_NAME, PROXY_URL, AWS_ID, AWS_PASSWORD, OPERATION_FUNCS
+from .config import s3_client, S3_SOURCE, BUCKET_NAME, PROXY_URL, AWS_ID, AWS_PASSWORD
 from .utils import fetch_from_s3, ensure_test_bucket_exists
 from .mocks import MockResponse
 
@@ -78,7 +78,7 @@ def test_invalid_operation(monkeypatch):
     #Check the response is sensible
     assert response.status_code == 422
     assert response.headers['content-type'] == 'application/json'
-    assert 'op_name' in response.text.lower() #Check for informative error message
+    assert 'operation' in response.text.lower() #Check for informative error message
     
 
 def test_invalid_dtype(monkeypatch):
