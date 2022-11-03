@@ -25,7 +25,8 @@ ALLOWED_DTYPES = ['int32', 'int64', 'float32', 'float64', 'uint32', 'uint64']
 OPERATION_FUNCS = {
     'select': lambda arr: arr,
     'sum': lambda arr: np.sum(arr, dtype=arr.dtype),
-    "count": lambda arr: np.prod(arr.shape, dtype = np.int64),
+    'count': lambda arr: np.prod(arr.shape, dtype = np.int64),
     'max': np.max,
     'min': np.min,
+    'mean': lambda arr: (np.sum(arr) / np.size(arr)).astype(arr.dtype),
 }
