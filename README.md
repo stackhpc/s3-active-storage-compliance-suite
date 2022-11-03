@@ -36,7 +36,7 @@ from within the project directory.
 
 Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to the active storage proxy and the proxy response is compared to the expected result based on the agreed API specification and the generated test arrays.
 
-There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice parameters. Testing of other aspects (e.g. response codes and error messages) can be added as needed.
+There are procedurally generated test cases to cover various combinations of reduction operation, data type, data shape and data slice parameters as well as testing of response codes and error messages informative error messages.
 
 
 
