@@ -15,11 +15,11 @@ def ensure_test_bucket_exists():
         pass #Bucket already exists
 
 
-def upload_to_s3(s3_client, arr: np.array, filename: str) -> None:
+def upload_to_s3(s3_client, arr: np.array, filename: str, order='C') -> None:
 
     """ Upload a numpy array in binary format to an S3 storage bucket """
 
-    stream = io.BytesIO(arr.tobytes())
+    stream = io.BytesIO(arr.tobytes(order=order))
     s3_client.upload_fileobj(stream, BUCKET_NAME, filename)
 
     return

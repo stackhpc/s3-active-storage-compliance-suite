@@ -9,28 +9,48 @@ from .utils import upload_to_s3, ensure_test_bucket_exists
 from .mocks import MockResponse
 
 
-def generate_test_data(filename, operation: str, dtype: str, shape: list[int], selection: list[list[int]], offset: Union[int, None], size: Union[int, None]):
+def generate_test_data(
+        filename, 
+        operation: str, 
+        dtype: str,
+        shape: list[int], 
+        selection: list[list[int]], 
+        offset: Union[int, None], 
+        size: Union[int, None], 
+        order: str
+    ):
 
-    """ Creates some test data and uploads it to the configured S3 source for later requests through the active proxy """
+    """ 
+    Creates some test data and uploads it to the configured
+    S3 source for later requests through the active proxy 
+    """
 
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
-    #Generate some test data (multiply random array by 10 so that int dtypes don't all round down to zeros)
+    #Generate some test data 
+    # (multiply random array by 10 so that int dtypes don't all round down to zeros)
     data = (10*np.random.rand(100)).astype(dtype) 
     #Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists()
-    upload_to_s3(s3_client, data, filename)
+    upload_to_s3(s3_client, data, filename, order=order)
 
-    #Perform any required offsetting
+    #Perform any required offsetting and other chunk manipulations
     offset = offset or 0
     count = -1 # value = -1 tells numpy to read whole buffer
     if size:
         count = size // np.dtype(dtype).itemsize
-    data = np.frombuffer(data.tobytes(), dtype=dtype, offset=offset, count=count)
+    data_bytes = data.tobytes(order=order) #Make sure C/F ordering is set
+    data = np.frombuffer(data_bytes, dtype, offset=offset, count=count)
+
     if shape:
         data = data.reshape(*shape)
 
-    #Create pythonic slices object (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
+    #Convert to row-major (C) order for simplified numpy operations
+    if order == 'F':
+        data = data.T.copy()
+
+    #Create pythonic slices object 
+    # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
     if selection:
         slices = tuple(slice(*s) for s in selection)
         data = data[slices]
@@ -42,15 +62,16 @@ def generate_test_data(filename, operation: str, dtype: str, shape: list[int], s
 
 
 #Stacking parametrization decorators tells pytest to check every possible combination of parameters
+@pytest.mark.parametrize('order', ['C', 'F'])
 @pytest.mark.parametrize('shape, selection', [(None, None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
 @pytest.mark.parametrize('dtype', ALLOWED_DTYPES)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
-def test_basic_operation(monkeypatch, operation, dtype, shape, selection, offset=None, size=None):
+def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset=None, size=None):
 
     """ Test basic functionality of reduction operations on various types of input data """
 
     filename = f"test--dtype-{dtype}--shape-{shape}--selection-{selection}.bin"
-    operation_result = generate_test_data(filename, operation, dtype, shape, selection, offset, size)
+    operation_result = generate_test_data(filename, operation, dtype, shape, selection, offset, size, order)
 
     request_data = {
         'source': S3_SOURCE,
@@ -60,7 +81,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, offset
         'offset': offset,
         'size': size,
         'shape': shape,
-        'order': 'C',
+        'order': order,
         'selection': selection,
     }
 
@@ -87,7 +108,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, offset
     print('\nProxy result:', proxy_result, '\nExpected result:', operation_result) #For debugging
     assert proxy_response.headers['x-activestorage-dtype'] == (request_data['dtype'] if operation != 'count' else 'int64')
     assert proxy_response.headers['x-activestorage-shape'] == str(list(operation_result.shape)) if operation != 'count' else '[1]'
-    assert proxy_response.content == operation_result.tobytes()
+    assert proxy_response.content == operation_result.tobytes(order=order)
     assert proxy_response.headers['content-length'] == str(len(operation_result.tobytes()))
 
 
@@ -125,7 +146,8 @@ param_combos = [
 ]
 @pytest.mark.parametrize('dtype, shape, selection, offset, size', param_combos)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
-def test_offset_and_size(monkeypatch, operation, dtype, shape, selection, offset, size):
+@pytest.mark.parametrize('order', ['C', 'F'])
+def test_offset_and_size(monkeypatch, operation, dtype, shape, selection, order, offset, size):
     #We can still hook into previous test func though to avoid repeated code 
     #(maybe there's a more pytest-y way to do this?)
-    test_basic_operation(monkeypatch, operation, dtype, shape, selection, offset, size)
+    test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset, size)
