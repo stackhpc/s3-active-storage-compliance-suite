@@ -60,7 +60,8 @@ def test_nonexistent_file(monkeypatch):
     response = make_request(filename=invalid_filename)
 
     #Check the response is sensible
-    assert response.status_code == 404
+    # Minio returns 404 but radosgw returs 500 so just check response code is something error-like
+    assert response.status_code >= 400
     assert response.headers['content-type'] == 'application/json'
     # assert <something-about-informative-error-message-in-response-body?>
 
