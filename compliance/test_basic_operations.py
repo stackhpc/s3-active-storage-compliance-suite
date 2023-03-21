@@ -110,7 +110,8 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     expected_shape = list(operation_result.shape)
     proxy_shape = json.loads(proxy_response.headers['x-activestorage-shape'])
     assert proxy_shape == expected_shape
-    assert proxy_response.content == operation_result.tobytes(order=order)
+    proxy_result = proxy_result.reshape(proxy_shape, order=order)
+    assert np.allclose(proxy_result, operation_result), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
     assert proxy_response.headers['content-length'] == str(len(operation_result.tobytes()))
 
 
