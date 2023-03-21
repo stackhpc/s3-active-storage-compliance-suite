@@ -96,7 +96,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     proxy_response = requests.post(f'{PROXY_URL}/v1/{operation}/', json=request_data, auth=(AWS_ID, AWS_PASSWORD))
 
     #For debugging failed tests
-    if proxy_response != 200:
+    if proxy_response.status_code != 200:
         print(proxy_response.text)
 
     assert proxy_response.status_code == 200
