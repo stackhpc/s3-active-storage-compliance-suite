@@ -62,7 +62,7 @@ def generate_test_data(
 
 #Stacking parametrization decorators tells pytest to check every possible combination of parameters
 @pytest.mark.parametrize('order', ['C', 'F'])
-@pytest.mark.parametrize('shape, selection', [(None, None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
+@pytest.mark.parametrize('shape, selection', [(None, None), ([5, 5, 4], None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
 @pytest.mark.parametrize('dtype', ALLOWED_DTYPES)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
 def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset=None, size=None):
