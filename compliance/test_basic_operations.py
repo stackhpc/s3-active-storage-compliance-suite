@@ -28,26 +28,25 @@ def generate_test_data(
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
     #Generate some test data 
+    #This is the raw data that will be uploaded to S3, and is currently a 1D array.
     # (multiply random array by 10 so that int dtypes don't all round down to zeros)
     data = (10*np.random.rand(100)).astype(dtype) 
+
     #Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists()
-    upload_to_s3(s3_client, data, filename, order=order)
+    upload_to_s3(s3_client, data, filename)
 
     #Perform any required offsetting and other chunk manipulations
     offset = offset or 0
     count = -1 # value = -1 tells numpy to read whole buffer
     if size:
         count = size // np.dtype(dtype).itemsize
-    data_bytes = data.tobytes(order=order) #Make sure C/F ordering is set
+    data_bytes = data.tobytes()
+    #Create a 1D array from the required byte range.
     data = np.frombuffer(data_bytes, dtype, offset=offset, count=count)
 
-    if shape:
-        data = data.reshape(*shape)
-
-    #Convert to row-major (C) order for simplified numpy operations
-    if order == 'F':
-        data = data.T.copy()
+    #Reshape the array to apply the shape (if specified) and C/F order.
+    data = data.reshape(*(shape or data.shape), order=order)
 
     #Create pythonic slices object 
     # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
