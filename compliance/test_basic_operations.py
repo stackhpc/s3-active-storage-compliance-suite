@@ -1,4 +1,5 @@
 
+import json
 import pytest
 import requests
 import numpy as np
@@ -106,7 +107,9 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     # Compare to expected result and make sure response headers are sensible - all comparisons should be done as strings
     print('\nProxy result:', proxy_result, '\nExpected result:', operation_result) #For debugging
     assert proxy_response.headers['x-activestorage-dtype'] == (request_data['dtype'] if operation != 'count' else 'int64')
-    assert proxy_response.headers['x-activestorage-shape'] == str(list(operation_result.shape)) if operation != 'count' else '[1]'
+    expected_shape = list(operation_result.shape)
+    proxy_shape = json.loads(proxy_response.headers['x-activestorage-shape'])
+    assert proxy_shape == expected_shape
     assert proxy_response.content == operation_result.tobytes(order=order)
     assert proxy_response.headers['content-length'] == str(len(operation_result.tobytes()))
 
