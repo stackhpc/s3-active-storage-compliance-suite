@@ -1,4 +1,5 @@
 
+import json
 import pytest
 import requests
 import numpy as np
@@ -28,26 +29,25 @@ def generate_test_data(
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
     #Generate some test data 
+    #This is the raw data that will be uploaded to S3, and is currently a 1D array.
     # (multiply random array by 10 so that int dtypes don't all round down to zeros)
     data = (10*np.random.rand(100)).astype(dtype) 
+
     #Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists()
-    upload_to_s3(s3_client, data, filename, order=order)
+    upload_to_s3(s3_client, data, filename)
 
     #Perform any required offsetting and other chunk manipulations
     offset = offset or 0
     count = -1 # value = -1 tells numpy to read whole buffer
     if size:
         count = size // np.dtype(dtype).itemsize
-    data_bytes = data.tobytes(order=order) #Make sure C/F ordering is set
+    data_bytes = data.tobytes()
+    #Create a 1D array from the required byte range.
     data = np.frombuffer(data_bytes, dtype, offset=offset, count=count)
 
-    if shape:
-        data = data.reshape(*shape)
-
-    #Convert to row-major (C) order for simplified numpy operations
-    if order == 'F':
-        data = data.T.copy()
+    #Reshape the array to apply the shape (if specified) and C/F order.
+    data = data.reshape(*(shape or data.shape), order=order)
 
     #Create pythonic slices object 
     # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
@@ -63,7 +63,7 @@ def generate_test_data(
 
 #Stacking parametrization decorators tells pytest to check every possible combination of parameters
 @pytest.mark.parametrize('order', ['C', 'F'])
-@pytest.mark.parametrize('shape, selection', [(None, None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
+@pytest.mark.parametrize('shape, selection', [(None, None), ([5, 5, 4], None), ([100], [[10, 50, 4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
 @pytest.mark.parametrize('dtype', ALLOWED_DTYPES)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
 def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset=None, size=None):
@@ -97,7 +97,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     proxy_response = requests.post(f'{PROXY_URL}/v1/{operation}/', json=request_data, auth=(AWS_ID, AWS_PASSWORD))
 
     #For debugging failed tests
-    if proxy_response != 200:
+    if proxy_response.status_code != 200:
         print(proxy_response.text)
 
     assert proxy_response.status_code == 200
@@ -107,8 +107,11 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     # Compare to expected result and make sure response headers are sensible - all comparisons should be done as strings
     print('\nProxy result:', proxy_result, '\nExpected result:', operation_result) #For debugging
     assert proxy_response.headers['x-activestorage-dtype'] == (request_data['dtype'] if operation != 'count' else 'int64')
-    assert proxy_response.headers['x-activestorage-shape'] == str(list(operation_result.shape)) if operation != 'count' else '[1]'
-    assert proxy_response.content == operation_result.tobytes(order=order)
+    expected_shape = list(operation_result.shape)
+    proxy_shape = json.loads(proxy_response.headers['x-activestorage-shape'])
+    assert proxy_shape == expected_shape
+    proxy_result = proxy_result.reshape(proxy_shape, order=order)
+    assert np.allclose(proxy_result, operation_result), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
     assert proxy_response.headers['content-length'] == str(len(operation_result.tobytes()))
 
 
