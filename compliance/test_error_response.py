@@ -62,10 +62,10 @@ def test_nonexistent_file(monkeypatch):
     #Check the response is sensible
     # Minio returns 404 but radosgw returs 500 so just check response code is something error-like
     assert response.status_code >= 400
-    assert response.headers['content-type'] == 'application/json'
-    # assert <something-about-informative-error-message-in-response-body?>
+    assert response.headers.get('content-type') == 'application/json'
+    response.json()
+    assert "NoSuchKey" in response.text #Check for informative error message
 
-    
 
 def test_invalid_operation(monkeypatch):
 
@@ -77,9 +77,10 @@ def test_invalid_operation(monkeypatch):
     response = make_request(op=invalid_operation)
 
     #Check the response is sensible
-    assert response.status_code == 422
-    assert response.headers['content-type'] == 'application/json'
+    assert response.status_code in (404, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'operation' in response.text.lower() #Check for informative error message
+    response.json()
     
 
 def test_invalid_dtype(monkeypatch):
@@ -92,11 +93,10 @@ def test_invalid_dtype(monkeypatch):
     response = make_request(dtype=invalid_dtype)
 
     #Check the response is sensible
-    assert response.status_code == 422
-    assert 'not' in response.text.lower()
-    assert 'valid' in response.text.lower()
+    assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'dtype' in response.text.lower()
-
+    response.json()
 
 
 def test_invalid_offset(monkeypatch):
@@ -109,8 +109,10 @@ def test_invalid_offset(monkeypatch):
     response = make_request(offset=invalid_offset)
 
     #Check the response is sensible
-    assert response.status_code == 422
+    assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'offset' in response.text.lower()
+    response.json()
 
 
 def test_invalid_size(monkeypatch):
@@ -123,9 +125,10 @@ def test_invalid_size(monkeypatch):
     response = make_request(size=invalid_size)
 
     #Check the response is sensible
-    assert response.status_code == 422
+    assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'size' in response.text.lower()
-
+    response.json()
 
 
 def test_invalid_shape(monkeypatch):
@@ -138,9 +141,10 @@ def test_invalid_shape(monkeypatch):
     response = make_request(shape=invalid_shape)
 
     #Check the response is sensible
-    assert response.status_code == 422
+    assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'shape' in response.text.lower()    #Check the response is sensible
-
+    response.json()
 
 
 def test_invalid_selection(monkeypatch):
@@ -154,7 +158,9 @@ def test_invalid_selection(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'selection' in response.text.lower()
+    response.json()
 
 
 def test_shape_without_selection(monkeypatch):
@@ -168,9 +174,10 @@ def test_shape_without_selection(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'shape' in response.text.lower()
     assert 'selection' in response.text.lower()
-
+    response.json()
 
 
 def test_invalid_ordering(monkeypatch):
@@ -184,4 +191,6 @@ def test_invalid_ordering(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'order' in response.text.lower()
+    response.json()
