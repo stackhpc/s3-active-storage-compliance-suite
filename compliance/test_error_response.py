@@ -93,6 +93,7 @@ def test_invalid_dtype(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'dtype' in response.text.lower()
 
 
@@ -108,6 +109,7 @@ def test_invalid_offset(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'offset' in response.text.lower()
 
 
@@ -122,6 +124,7 @@ def test_invalid_size(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'size' in response.text.lower()
 
 
@@ -137,6 +140,7 @@ def test_invalid_shape(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
+    assert response.headers.get('content-type') == 'application/json'
     assert 'shape' in response.text.lower()    #Check the response is sensible
 
 
@@ -152,6 +156,7 @@ def test_invalid_selection(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'selection' in response.text.lower()
 
 
@@ -166,6 +171,7 @@ def test_shape_without_selection(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'shape' in response.text.lower()
     assert 'selection' in response.text.lower()
 
@@ -182,4 +188,5 @@ def test_invalid_ordering(monkeypatch):
 
     #Check the response is sensible
     assert response.status_code == 400
+    assert response.headers.get('content-type') == 'application/json'
     assert 'order' in response.text.lower()
