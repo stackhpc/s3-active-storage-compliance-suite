@@ -107,8 +107,8 @@ if __name__ == '__main__':
 
     for ax, (WORKERS, REQUESTS) in zip(axs, WORKERS_AND_REQUEST):    
 
-        print(f'\n Starting benchmark run with {WORKERS} and {REQUESTS} requests')
-        print('---------------------------------------------------n')
+        print(f'\n Starting benchmark run with {WORKERS} workers and {REQUESTS} requests')
+        print('--------------------------------------------------------\n')
         results = main()
 
         for type in ['no-proxy', *PROXY_URLS]:
