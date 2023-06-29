@@ -1,5 +1,7 @@
 
 import json
+import math
+import os
 import pytest
 import requests
 import numpy as np
@@ -18,7 +20,8 @@ def generate_test_data(
         selection: list[list[int]], 
         offset: Union[int, None], 
         size: Union[int, None], 
-        order: str
+        order: str,
+        trailing: Union[int, None]=None,
     ):
 
     """ 
@@ -28,23 +31,30 @@ def generate_test_data(
 
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
+    # Determine the number of elements in the array.
+    if shape:
+        num_elements = math.prod(shape)
+        if size:
+            assert num_elements == size // np.dtype(dtype).itemsize
+    elif size:
+        num_elements = size // np.dtype(dtype).itemsize
+    else:
+        num_elements = 100
+
     #Generate some test data 
     #This is the raw data that will be uploaded to S3, and is currently a 1D array.
     # (multiply random array by 10 so that int dtypes don't all round down to zeros)
-    data = (10*np.random.rand(100)).astype(dtype) 
+    data = (10*np.random.rand(num_elements)).astype(dtype)
+
+    # Convert to bytes for upload
+    data_bytes = data.tobytes()
+
+    # Apply random data before offset.
+    s3_data = os.urandom(offset or 0) + data_bytes + os.urandom(trailing or 0)
 
     #Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists()
-    upload_to_s3(s3_client, data, filename)
-
-    #Perform any required offsetting and other chunk manipulations
-    offset = offset or 0
-    count = -1 # value = -1 tells numpy to read whole buffer
-    if size:
-        count = size // np.dtype(dtype).itemsize
-    data_bytes = data.tobytes()
-    #Create a 1D array from the required byte range.
-    data = np.frombuffer(data_bytes, dtype, offset=offset, count=count)
+    upload_to_s3(s3_client, s3_data, filename)
 
     #Reshape the array to apply the shape (if specified) and C/F order.
     data = data.reshape(*(shape or data.shape), order=order)
@@ -66,12 +76,12 @@ def generate_test_data(
 @pytest.mark.parametrize('shape, selection', [(None, None), ([5, 5, 4], None), ([100], [[-10, -50, -4]]), ([20, 5], [[0, 19, 2], [1, 3, 1]])])
 @pytest.mark.parametrize('dtype', ALLOWED_DTYPES)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
-def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset=None, size=None):
+def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset=None, size=None, trailing=None):
 
     """ Test basic functionality of reduction operations on various types of input data """
 
-    filename = f"test--dtype-{dtype}--shape-{shape}--selection-{selection}.bin"
-    operation_result = generate_test_data(filename, operation, dtype, shape, selection, offset, size, order)
+    filename = f"test--dtype-{dtype}--shape-{shape}--selection-{selection}-trailing-{trailing}.bin"
+    operation_result = generate_test_data(filename, operation, dtype, shape, selection, offset, size, order, trailing)
 
     request_data = {
         'source': S3_SOURCE,
@@ -124,13 +134,15 @@ param_combos = [
         None,    #selection
         8*10,    #offset
         8*20,    #size - must equal product of shape * dtype size in bytes
+        None,    #trailing data size in bytes
     ),
     (
         'float32',
         [10, 3],
         [[0, 10, 2], [0, 3, 1]],
-        4*2,
+        42,
         4*30,
+        42,
     ),
     (
         'uint32',
@@ -138,6 +150,7 @@ param_combos = [
         [[0, 10, 2], [0, 2, 1], [0, 3, 1]],
         4*5,
         4*80,
+        None,
     ),
         (
         'int32',
@@ -145,12 +158,13 @@ param_combos = [
         [[0, 10, 2], [0, 2, 1], [0, 4, 3]],
         4*20,
         None,
+        None,
     ),
 ]
-@pytest.mark.parametrize('dtype, shape, selection, offset, size', param_combos)
+@pytest.mark.parametrize('dtype, shape, selection, offset, size, trailing', param_combos)
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
 @pytest.mark.parametrize('order', ['C', 'F'])
-def test_offset_and_size(monkeypatch, operation, dtype, shape, selection, order, offset, size):
+def test_offset_and_size(monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing):
     #We can still hook into previous test func though to avoid repeated code 
     #(maybe there's a more pytest-y way to do this?)
-    test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset, size)
+    test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing)
