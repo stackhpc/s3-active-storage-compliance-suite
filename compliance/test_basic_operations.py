@@ -12,23 +12,14 @@ from .utils import upload_to_s3, ensure_test_bucket_exists
 from .mocks import MockResponse
 
 
-def generate_test_data(
-        filename, 
-        operation: str, 
+def generate_test_array(
         dtype: str,
-        shape: list[int], 
-        selection: list[list[int]], 
-        offset: Union[int, None], 
-        size: Union[int, None], 
-        order: str,
-        trailing: Union[int, None]=None,
+        shape: list[int],
+        size: Union[int, None],
     ):
-
-    """ 
-    Creates some test data and uploads it to the configured
-    S3 source for later requests through the active proxy 
     """
-
+    Generate and return a numpy array of random data.
+    """
     np.random.seed(10) #Make sure randomized arrays are reproducible
 
     # Determine the number of elements in the array.
@@ -41,11 +32,22 @@ def generate_test_data(
     else:
         num_elements = 100
 
-    #Generate some test data 
+    #Generate some test data
     #This is the raw data that will be uploaded to S3, and is currently a 1D array.
     # (multiply random array by 10 so that int dtypes don't all round down to zeros)
-    data = (10*np.random.rand(num_elements)).astype(dtype)
+    return (10*np.random.rand(num_elements)).astype(dtype)
 
+
+def create_test_s3_object(
+        data,
+        filename,
+        offset: Union[int, None],
+        trailing: Union[int, None]=None,
+    ):
+    """
+    Create an S3 object from a numpy array.
+    Applies an offset, and trailing data before upload.
+    """
     # Convert to bytes for upload
     data_bytes = data.tobytes()
 
@@ -56,19 +58,52 @@ def generate_test_data(
     ensure_test_bucket_exists()
     upload_to_s3(s3_client, s3_data, filename)
 
+
+def calculate_expected_result(data, operation, shape, selection, order):
+    """
+    Calculate the expected result from applying the operation to the data.
+    Returns the result as a numpy array or scalar.
+    """
     #Reshape the array to apply the shape (if specified) and C/F order.
     data = data.reshape(*(shape or data.shape), order=order)
 
-    #Create pythonic slices object 
+    #Create pythonic slices object
     # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
     if selection:
         slices = tuple(slice(*s) for s in selection)
         data = data[slices]
- 
+
     #Perform main operation
     operation_result = OPERATION_FUNCS[operation](data)
 
     return operation_result
+
+
+def create_test_data(
+        filename,
+        operation: str,
+        dtype: str,
+        shape: list[int],
+        selection: list[list[int]],
+        offset: Union[int, None],
+        size: Union[int, None],
+        order: str,
+        trailing: Union[int, None]=None,
+    ):
+
+    """
+    Creates some test data and uploads it to the configured
+    S3 source for later requests through the active proxy
+    Returns the expected result as a numpy array or scalar.
+    """
+    # Generate a test array
+    data = generate_test_array(dtype, shape, size)
+
+    # Create an object in S3
+    create_test_s3_object(data, filename, offset, trailing)
+
+    # Calculate and return the expected result.
+    return calculate_expected_result(data, operation, shape, selection, order)
 
 
 #Stacking parametrization decorators tells pytest to check every possible combination of parameters
@@ -80,8 +115,8 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
 
     """ Test basic functionality of reduction operations on various types of input data """
 
-    filename = f"test--dtype-{dtype}--shape-{shape}--selection-{selection}-trailing-{trailing}.bin"
-    operation_result = generate_test_data(filename, operation, dtype, shape, selection, offset, size, order, trailing)
+    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}.bin"
+    operation_result = create_test_data(filename, operation, dtype, shape, selection, offset, size, order, trailing)
 
     request_data = {
         'source': S3_SOURCE,
@@ -98,8 +133,8 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     #Mock proxy responses if url not set
     if PROXY_URL is None:
         monkeypatch.setattr(
-            requests, 
-            'post', 
+            requests,
+            'post',
             lambda *args, **kwargs: MockResponse(status_code=200, operation_result=operation_result)
         )
 
@@ -165,6 +200,6 @@ param_combos = [
 @pytest.mark.parametrize('operation', OPERATION_FUNCS.keys())
 @pytest.mark.parametrize('order', ['C', 'F'])
 def test_offset_and_size(monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing):
-    #We can still hook into previous test func though to avoid repeated code 
+    #We can still hook into previous test func though to avoid repeated code
     #(maybe there's a more pytest-y way to do this?)
     test_basic_operation(monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing)
