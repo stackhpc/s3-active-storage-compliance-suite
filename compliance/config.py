@@ -31,4 +31,12 @@ OPERATION_FUNCS = {
     "mean": lambda arr: (np.sum(arr) / np.size(arr)).astype(arr.dtype),
 }
 
+# Whether to test for the presence of the x-activestorage-count header in responses.
 TEST_X_ACTIVESTORAGE_COUNT_HEADER = True
+
+# List of names of supported compression algorithms.
+# May be set to an empty list if compression is not supported by the server.
+COMPRESSION_ALGS = [
+    "gzip",
+    "zlib",
+]

@@ -16,8 +16,9 @@ from .config import (
     AWS_ID,
     AWS_PASSWORD,
     TEST_X_ACTIVESTORAGE_COUNT_HEADER,
+    COMPRESSION_ALGS,
 )
-from .utils import upload_to_s3, ensure_test_bucket_exists
+from .utils import filter_pipeline, ensure_test_bucket_exists, upload_to_s3
 from .mocks import MockResponse
 
 
@@ -47,25 +48,40 @@ def generate_test_array(
     return (10 * np.random.rand(num_elements)).astype(dtype)
 
 
-def create_test_s3_object(
+def generate_object_data(
     data,
-    filename,
     offset: Union[int, None],
-    trailing: Union[int, None] = None,
+    trailing: Union[int, None],
+    compression: Union[str, None],
 ):
     """
-    Create an S3 object from a numpy array.
+    Generate S3 object data from a numpy array.
     Applies an offset, and trailing data before upload.
+    Returns a 2-tuple of:
+      * the object data
+      * the size of the data in bytes after application of the filter pipeline
     """
     # Convert to bytes for upload
     data_bytes = data.tobytes()
 
-    # Apply random data before offset.
-    s3_data = os.urandom(offset or 0) + data_bytes + os.urandom(trailing or 0)
+    # Apply the compression and filter pipeline.
+    filtered_data = filter_pipeline(data_bytes, compression)
 
+    # Apply random data before offset.
+    object_data = os.urandom(offset or 0) + filtered_data + os.urandom(trailing or 0)
+    return object_data, len(filtered_data)
+
+
+def create_test_s3_object(
+    object_data,
+    filename,
+):
+    """
+    Create an S3 object from a list of bytes.
+    """
     # Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists()
-    upload_to_s3(s3_client, s3_data, filename)
+    upload_to_s3(s3_client, object_data, filename)
 
 
 def calculate_expected_result(data, operation, shape, selection, order):
@@ -98,20 +114,32 @@ def create_test_data(
     size: Union[int, None],
     order: str,
     trailing: Union[int, None] = None,
+    compression: Union[str, None] = None,
 ):
     """
     Creates some test data and uploads it to the configured
     S3 source for later requests through the active proxy
-    Returns the expected result as a numpy array or scalar.
+    Returns a 3-tuple containing:
+      * a numpy array of the test data
+      * the expected result as a numpy array or scalar
+      * the size in bytes of the compressed and/or filtered data
     """
     # Generate a test array
     data = generate_test_array(dtype, shape, size)
 
+    # Generate S3 object data from the array
+    object_data, compressed_size = generate_object_data(
+        data, offset, trailing, compression
+    )
+
     # Create an object in S3
-    create_test_s3_object(data, filename, offset, trailing)
+    create_test_s3_object(object_data, filename)
 
     # Calculate and return the expected result.
-    return calculate_expected_result(data, operation, shape, selection, order)
+    data, operation_result = calculate_expected_result(
+        data, operation, shape, selection, order
+    )
+    return data, operation_result, compressed_size
 
 
 # Stacking parametrization decorators tells pytest to check every possible combination of parameters
@@ -137,12 +165,22 @@ def test_basic_operation(
     offset=None,
     size=None,
     trailing=None,
+    compression=None,
 ):
     """Test basic functionality of reduction operations on various types of input data"""
 
-    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}.bin"
-    array_data, operation_result = create_test_data(
-        filename, operation, dtype, shape, selection, offset, size, order, trailing
+    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}-compression-{compression}.bin"
+    array_data, operation_result, compressed_size = create_test_data(
+        filename,
+        operation,
+        dtype,
+        shape,
+        selection,
+        offset,
+        size,
+        order,
+        trailing,
+        compression,
     )
 
     request_data = {
@@ -151,10 +189,11 @@ def test_basic_operation(
         "object": filename,
         "dtype": dtype,
         "offset": offset,
-        "size": size,
+        "size": compressed_size,
         "shape": shape,
         "order": order,
         "selection": selection,
+        "compression": compression,
     }
 
     # Mock proxy responses if url not set
@@ -194,9 +233,9 @@ def test_basic_operation(
     )
     expected_shape = list(operation_result.shape)
     proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
+    assert proxy_shape == expected_shape
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
         assert proxy_response.headers["x-activestorage-count"] == str(array_data.size)
-    assert proxy_shape == expected_shape
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
     assert np.allclose(
         proxy_result, operation_result
@@ -255,4 +294,25 @@ def test_offset_and_size(
     # (maybe there's a more pytest-y way to do this?)
     test_basic_operation(
         monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing
+    )
+
+
+@pytest.mark.parametrize("operation", OPERATION_FUNCS.keys())
+@pytest.mark.parametrize("compression", COMPRESSION_ALGS)
+@pytest.mark.parametrize("offset", [None, 64])
+@pytest.mark.parametrize("trailing", [None, 64])
+def test_compression(monkeypatch, operation, offset, trailing, compression):
+    """
+    Test compressed data with and without an offset and trailing data.
+    """
+    test_basic_operation(
+        monkeypatch,
+        operation,
+        "int64",
+        [10, 5, 2],
+        None,
+        "C",
+        offset,
+        trailing=trailing,
+        compression=compression,
     )

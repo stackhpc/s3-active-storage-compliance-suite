@@ -32,6 +32,15 @@ pytest
 ```
 from within the project directory.
 
+### Testing older active storage servers
+
+We aim to add tests for features as they are added to the S3 active storage server.
+This does lead to problems when testing older versions of the server that may lack support for those features.
+This is addressed through configuration variables in `compliance/config.py`.
+
+- `TEST_X_ACTIVESTORAGE_COUNT_HEADER` - Whether to test for the presence of the `x-activestorage-count` header in responses.
+- `COMPRESSION_ALGS` - List of names of compression algorithms to test. May be set to an empty list.
+
 ### Implementation details
 
 Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to the active storage proxy and the proxy response is compared to the expected result based on the agreed API specification and the generated test arrays.

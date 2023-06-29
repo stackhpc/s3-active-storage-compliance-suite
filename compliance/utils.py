@@ -1,7 +1,10 @@
+import gzip
 import io
 import pytest
 from botocore.exceptions import ClientError
 import numpy as np
+from typing import Optional
+import zlib
 from compliance.config import s3_client, BUCKET_NAME
 
 
@@ -32,3 +35,14 @@ def fetch_from_s3(s3_client, filename: str) -> bytes:
         raise FileNotFoundError(
             f"File '{filename}' not found in S3 bucket '{BUCKET_NAME}'"
         )
+
+
+def filter_pipeline(data: bytes, compression: Optional[str]) -> bytes:
+    """Apply compression and filters to data and return the result."""
+    if compression == "gzip":
+        data = gzip.compress(data)
+    elif compression == "zlib":
+        data = zlib.compress(data)
+    elif compression is not None:
+        raise AssertionError(f"Unexpected compression algorithm {compression}")
+    return data
