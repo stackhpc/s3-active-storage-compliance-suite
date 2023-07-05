@@ -73,7 +73,7 @@ def test_invalid_operation(monkeypatch):
 
     #Make proxy request
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, operation_result=np.array([]))) #Is this a sensible mock response?
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, operation_result=np.array([])))
     response = make_request(op=invalid_operation)
 
     #Check the response is sensible

@@ -30,3 +30,5 @@ OPERATION_FUNCS = {
     'min': np.min,
     'mean': lambda arr: (np.sum(arr) / np.size(arr)).astype(arr.dtype),
 }
+
+TEST_X_ACTIVESTORAGE_COUNT_HEADER = True

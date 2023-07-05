@@ -7,7 +7,7 @@ import requests
 import numpy as np
 
 from typing import Union
-from .config import s3_client, S3_SOURCE, PROXY_URL, BUCKET_NAME, ALLOWED_DTYPES, OPERATION_FUNCS, AWS_ID, AWS_PASSWORD
+from .config import s3_client, S3_SOURCE, PROXY_URL, BUCKET_NAME, ALLOWED_DTYPES, OPERATION_FUNCS, AWS_ID, AWS_PASSWORD, TEST_X_ACTIVESTORAGE_COUNT_HEADER
 from .utils import upload_to_s3, ensure_test_bucket_exists
 from .mocks import MockResponse
 
@@ -76,7 +76,7 @@ def calculate_expected_result(data, operation, shape, selection, order):
     #Perform main operation
     operation_result = OPERATION_FUNCS[operation](data)
 
-    return operation_result
+    return data, operation_result
 
 
 def create_test_data(
@@ -116,7 +116,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     """ Test basic functionality of reduction operations on various types of input data """
 
     filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}.bin"
-    operation_result = create_test_data(filename, operation, dtype, shape, selection, offset, size, order, trailing)
+    array_data, operation_result = create_test_data(filename, operation, dtype, shape, selection, offset, size, order, trailing)
 
     request_data = {
         'source': S3_SOURCE,
@@ -135,7 +135,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
         monkeypatch.setattr(
             requests,
             'post',
-            lambda *args, **kwargs: MockResponse(status_code=200, operation_result=operation_result)
+            lambda *args, **kwargs: MockResponse(status_code=200, request_data=request_data, array_data=array_data, operation_result=operation_result)
         )
 
     # Fetch response from proxy
@@ -154,6 +154,8 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
     assert proxy_response.headers['x-activestorage-dtype'] == (request_data['dtype'] if operation != 'count' else 'int64')
     expected_shape = list(operation_result.shape)
     proxy_shape = json.loads(proxy_response.headers['x-activestorage-shape'])
+    if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
+        assert proxy_response.headers['x-activestorage-count'] == str(array_data.size)
     assert proxy_shape == expected_shape
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
     assert np.allclose(proxy_result, operation_result), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
