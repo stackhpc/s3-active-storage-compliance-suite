@@ -135,7 +135,7 @@ def test_basic_operation(monkeypatch, operation, dtype, shape, selection, order,
         monkeypatch.setattr(
             requests,
             'post',
-            lambda *args, **kwargs: MockResponse(status_code=200, request_data=request_data, array_data=array_data, operation_result=operation_result)
+            lambda *args, **kwargs: MockResponse(status_code=200, array_data=array_data, operation_result=operation_result, order=order)
         )
 
     # Fetch response from proxy

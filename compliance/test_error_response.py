@@ -40,7 +40,8 @@ def make_request(
     }
 
     response = requests.post(f'{PROXY_URL}/v1/{op}/', json=request_data, auth=(AWS_ID, AWS_PASSWORD))
-    print(response.text) #For debugging
+    if PROXY_URL is not None:
+        print(response.text) #For debugging
 
     return response
 
@@ -56,15 +57,16 @@ def test_nonexistent_file(monkeypatch):
     
     #Make proxy request
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, operation_result=np.array([]))) #Is this a sensible mock response?
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(filename=invalid_filename)
 
     #Check the response is sensible
     # Minio returns 404 but radosgw returs 500 so just check response code is something error-like
     assert response.status_code >= 400
-    assert response.headers.get('content-type') == 'application/json'
-    response.json()
-    assert "NoSuchKey" in response.text #Check for informative error message
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert "NoSuchKey" in response.text #Check for informative error message
 
 
 def test_invalid_operation(monkeypatch):
@@ -73,14 +75,16 @@ def test_invalid_operation(monkeypatch):
 
     #Make proxy request
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=404, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(op=invalid_operation)
 
     #Check the response is sensible
     assert response.status_code in (404, 422)
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'operation' in response.text.lower() #Check for informative error message
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'operation' in response.text.lower() #Check for informative error message
+        response.json()
     
 
 def test_invalid_dtype(monkeypatch):
@@ -89,14 +93,16 @@ def test_invalid_dtype(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(dtype=invalid_dtype)
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'dtype' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'dtype' in response.text.lower()
+        response.json()
 
 
 def test_invalid_offset(monkeypatch):
@@ -105,14 +111,16 @@ def test_invalid_offset(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(offset=invalid_offset)
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'offset' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'offset' in response.text.lower()
+        response.json()
 
 
 def test_invalid_size(monkeypatch):
@@ -121,14 +129,16 @@ def test_invalid_size(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(size=invalid_size)
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'size' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'size' in response.text.lower()
+        response.json()
 
 
 def test_invalid_shape(monkeypatch):
@@ -137,14 +147,16 @@ def test_invalid_shape(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(shape=invalid_shape)
 
     #Check the response is sensible
     assert response.status_code in (400, 422)
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'shape' in response.text.lower()    #Check the response is sensible
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'shape' in response.text.lower()    #Check the response is sensible
+        response.json()
 
 
 def test_invalid_selection(monkeypatch):
@@ -153,14 +165,16 @@ def test_invalid_selection(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(selection=invalid_selection)
 
     #Check the response is sensible
     assert response.status_code == 400
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'selection' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'selection' in response.text.lower()
+        response.json()
 
 
 def test_shape_without_selection(monkeypatch):
@@ -169,15 +183,17 @@ def test_shape_without_selection(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(**invalid_shape_and_selection)
 
     #Check the response is sensible
     assert response.status_code == 400
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'shape' in response.text.lower()
-    assert 'selection' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'shape' in response.text.lower()
+        assert 'selection' in response.text.lower()
+        response.json()
 
 
 def test_invalid_ordering(monkeypatch):
@@ -186,11 +202,13 @@ def test_invalid_ordering(monkeypatch):
 
     #Make proxy request (mocking response if needed)
     if PROXY_URL is None:
-        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, operation_result=np.array([])))
+        monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse(status_code=400, array_data=np.array([]), operation_result=np.array([])))
     response = make_request(order=invalid_ordering)
 
     #Check the response is sensible
     assert response.status_code == 400
-    assert response.headers.get('content-type') == 'application/json'
-    assert 'order' in response.text.lower()
-    response.json()
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get('content-type') == 'application/json'
+        assert 'order' in response.text.lower()
+        response.json()
