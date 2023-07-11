@@ -1,8 +1,6 @@
 import gzip
 import io
-import pytest
 from botocore.exceptions import ClientError
-import numpy as np
 from typing import Optional
 import zlib
 from compliance.config import s3_client, BUCKET_NAME
@@ -11,7 +9,7 @@ from compliance.config import s3_client, BUCKET_NAME
 def ensure_test_bucket_exists():
     # Create required bucket if it doesn't yet exist
     try:
-        bucket = s3_client.create_bucket(Bucket=BUCKET_NAME)
+        s3_client.create_bucket(Bucket=BUCKET_NAME)
     except ClientError:
         pass  # Bucket already exists
 
