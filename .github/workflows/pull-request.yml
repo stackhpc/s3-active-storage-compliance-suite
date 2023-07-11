@@ -5,7 +5,17 @@ on:
     branches:
       - main
   pull_request:
+permissions: {}
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout compliance test suite
+        uses: actions/checkout@v3
+
+      - name: Run black code style checker
+        uses: psf/black@stable
+
   compliance-test:
     runs-on: ubuntu-latest
     steps:
