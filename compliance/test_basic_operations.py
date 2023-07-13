@@ -193,8 +193,10 @@ def test_basic_operation(
         "shape": shape,
         "order": order,
         "selection": selection,
-        "compression": compression,
     }
+
+    if compression:
+        request_data["compression"] = {"id": compression}
 
     # Mock proxy responses if url not set
     if PROXY_URL is None:
