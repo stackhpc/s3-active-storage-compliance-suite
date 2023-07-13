@@ -11,7 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 # List of running proxies to benchmark against each other
 PROXY_URLS = {
-    "active-storage": "http://localhost:8000",
+    "active-storage": "http://localhost:8080",
 }
 
 # Configure upstream object store details
