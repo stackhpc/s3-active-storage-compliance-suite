@@ -40,3 +40,9 @@ COMPRESSION_ALGS = [
     "gzip",
     "zlib",
 ]
+
+# List of names of supported filter algorithms.
+# May be set to an empty list if filters are not supported by the server.
+FILTER_ALGS = [
+    "shuffle",
+]
