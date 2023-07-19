@@ -13,8 +13,20 @@ jobs:
       - name: Checkout compliance test suite
         uses: actions/checkout@v3
 
+      - name: Setup python
+        uses: actions/setup-python@v4
+
       - name: Run black code style checker
         uses: psf/black@stable
+
+      - name: Install compliance test suite dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install mypy type checker
+        run: pip install mypy boto3-stubs botocore-stubs types-requests
+
+      - name: Run mypy type checker
+        run: mypy compliance
 
   compliance-test:
     runs-on: ubuntu-latest
