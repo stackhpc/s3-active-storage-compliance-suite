@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 # List of running proxies to benchmark against each other
 PROXY_URLS = {
-    "active-storage": "http://localhost:8000",
-    # 'proxy-2': 'http://localhost:8001',
+    "active-storage": "http://localhost:8080",
+    # 'python': 'http://localhost:8000',
 }
 
 # S3_SOURCE = 'http://localhost:9000'
