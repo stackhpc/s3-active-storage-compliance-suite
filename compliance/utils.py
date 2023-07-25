@@ -1,6 +1,9 @@
 import gzip
 import io
 from botocore.exceptions import ClientError
+
+# NOTE: numcodecs is missing type hints
+import numcodecs  # type: ignore
 from typing import Optional
 import zlib
 from compliance.config import s3_client, BUCKET_NAME
@@ -35,8 +38,15 @@ def fetch_from_s3(s3_client, filename: str) -> bytes:
         )
 
 
-def filter_pipeline(data: bytes, compression: Optional[str]) -> bytes:
+def filter_pipeline(
+    data: bytes, compression: Optional[str], filters: Optional[list], element_size: int
+) -> bytes:
     """Apply compression and filters to data and return the result."""
+    for filter in filters or []:
+        if filter == "shuffle":
+            data = numcodecs.Shuffle(element_size).encode(data)
+        else:
+            raise AssertionError(f"Unexpected filter algorithm {filter}")
     if compression == "gzip":
         data = gzip.compress(data)
     elif compression == "zlib":

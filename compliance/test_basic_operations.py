@@ -5,7 +5,7 @@ import pytest
 import requests
 import numpy as np
 
-from typing import Union
+from typing import List, Union
 from .config import (
     s3_client,
     S3_SOURCE,
@@ -17,6 +17,7 @@ from .config import (
     AWS_PASSWORD,
     TEST_X_ACTIVESTORAGE_COUNT_HEADER,
     COMPRESSION_ALGS,
+    FILTER_ALGS,
 )
 from .utils import filter_pipeline, ensure_test_bucket_exists, upload_to_s3
 from .mocks import MockResponse
@@ -53,6 +54,8 @@ def generate_object_data(
     offset: Union[int, None],
     trailing: Union[int, None],
     compression: Union[str, None],
+    filters: Union[List[str], None],
+    dtype: str,
 ):
     """
     Generate S3 object data from a numpy array.
@@ -65,7 +68,8 @@ def generate_object_data(
     data_bytes = data.tobytes()
 
     # Apply the compression and filter pipeline.
-    filtered_data = filter_pipeline(data_bytes, compression)
+    element_size = np.dtype(dtype).itemsize
+    filtered_data = filter_pipeline(data_bytes, compression, filters, element_size)
 
     # Apply random data before offset.
     object_data = os.urandom(offset or 0) + filtered_data + os.urandom(trailing or 0)
@@ -115,6 +119,7 @@ def create_test_data(
     order: str,
     trailing: Union[int, None] = None,
     compression: Union[str, None] = None,
+    filters: Union[List[str], None] = None,
 ):
     """
     Creates some test data and uploads it to the configured
@@ -129,7 +134,12 @@ def create_test_data(
 
     # Generate S3 object data from the array
     object_data, compressed_size = generate_object_data(
-        data, offset, trailing, compression
+        data,
+        offset,
+        trailing,
+        compression,
+        filters,
+        dtype,
     )
 
     # Create an object in S3
@@ -166,6 +176,7 @@ def test_basic_operation(
     size=None,
     trailing=None,
     compression=None,
+    filters=None,
 ):
     """Test basic functionality of reduction operations on various types of input data"""
 
@@ -181,6 +192,7 @@ def test_basic_operation(
         order,
         trailing,
         compression,
+        filters,
     )
 
     request_data = {
@@ -197,6 +209,11 @@ def test_basic_operation(
 
     if compression:
         request_data["compression"] = {"id": compression}
+    if filters:
+        request_data["filters"] = [
+            {"id": filter, "element_size": np.dtype(dtype).itemsize}
+            for filter in filters
+        ]
 
     # Mock proxy responses if url not set
     if PROXY_URL is None:
@@ -301,11 +318,12 @@ def test_offset_and_size(
 
 @pytest.mark.parametrize("operation", OPERATION_FUNCS.keys())
 @pytest.mark.parametrize("compression", COMPRESSION_ALGS)
+@pytest.mark.parametrize("filter", [""] + FILTER_ALGS)
 @pytest.mark.parametrize("offset", [None, 64])
 @pytest.mark.parametrize("trailing", [None, 64])
-def test_compression(monkeypatch, operation, offset, trailing, compression):
+def test_compression(monkeypatch, operation, offset, trailing, compression, filter):
     """
-    Test compressed data with and without an offset and trailing data.
+    Test compressed and/or filtered data with and without an offset and trailing data.
     """
     test_basic_operation(
         monkeypatch,
@@ -317,4 +335,5 @@ def test_compression(monkeypatch, operation, offset, trailing, compression):
         offset,
         trailing=trailing,
         compression=compression,
+        filters=[filter] if filter else None,
     )
