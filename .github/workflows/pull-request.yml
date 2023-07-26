@@ -37,15 +37,15 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4
 
-      - name: Checkout active storage server
+      - name: Checkout Reductionist server
         uses: actions/checkout@v3
         with:
-          repository: stackhpc/s3-active-storage-rs
-          path: s3-active-storage-rs
+          repository: stackhpc/reductionist-rs
+          path: reductionist-rs
 
       - name: Build
         run: make build
-        working-directory: s3-active-storage-rs
+        working-directory: reductionist-rs
 
       - name: Install compliance test suite dependencies
         run: pip install -r requirements.txt
@@ -56,7 +56,7 @@ jobs:
 
       - name: Start minio object storage
         run: scripts/minio-start
-        working-directory: s3-active-storage-rs
+        working-directory: reductionist-rs
 
       - name: Wait for minio object storage to start
         run: |
@@ -64,13 +64,13 @@ jobs:
             sleep 1;
           done
 
-      - name: Run active storage container
+      - name: Run Reductionist container
         run: make run
-        working-directory: s3-active-storage-rs
+        working-directory: reductionist-rs
 
-      - name: Wait for active storage server to start
+      - name: Wait for Reductionist server to start
         run: |
-          until curl -if http://localhost:8080/.well-known/s3-active-storage-schema; do
+          until curl -if http://localhost:8080/.well-known/reductionist-schema; do
             sleep 1;
           done
 
@@ -80,8 +80,8 @@ jobs:
       - name: Run compliance test suite
         run: pytest -s > artifacts/pytest.log
 
-      - name: Get active storage logs
-        run: docker logs s3-active-storage > artifacts/s3-active-storage.log
+      - name: Get Reductionist logs
+        run: docker logs reductionist > artifacts/reductionist.log
         if: always()
 
       - name: Upload artifacts
@@ -93,10 +93,10 @@ jobs:
 
       - name: Stop minio object storage
         run: scripts/minio-stop
-        working-directory: s3-active-storage-rs
+        working-directory: reductionist-rs
         if: always()
 
-      - name: Stop active storage container
+      - name: Stop Reductionist container
         run: make stop
-        working-directory: s3-active-storage-rs
+        working-directory: reductionist-rs
         if: always()
