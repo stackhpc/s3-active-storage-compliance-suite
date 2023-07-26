@@ -28,7 +28,6 @@ OPERATION_FUNCS = {
     "count": lambda arr: np.prod(arr.shape, dtype=np.int64),
     "max": np.max,
     "min": np.min,
-    "mean": lambda arr: (np.sum(arr) / np.size(arr)).astype(arr.dtype),
 }
 
 # Whether to test for the presence of the x-activestorage-count header in responses.
