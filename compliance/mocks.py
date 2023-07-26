@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 
 
 class MockResponse:
@@ -16,7 +17,7 @@ class MockResponse:
             "content-length": str(len(self.content)),
             "x-activestorage-dtype": str(operation_result.dtype),
             "x-activestorage-shape": str(list(operation_result.shape)),
-            "x-activestorage-count": str(array_data.size),
+            "x-activestorage-count": str(ma.count(array_data)),
         }
         return
 
