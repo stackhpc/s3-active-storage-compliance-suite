@@ -1,6 +1,11 @@
 # S3 active storage compliance suite
 
-Integration tests and performance benchmarking tools for implementations of the s3-active-storage project.
+Integration tests and performance benchmarking tools for implementations of S3 Active Storage servers.
+
+There are currently two S3 active storage server implementations:
+
+* [Reductionist](https://github.com/stackhpc/reductionist-rs) - a performant server implementation
+* [S3 Active Storage Prototype](https://github.com/stackhpc/s3-active-storage-prototype) - a functional prototype
 
 ## Compliance Suite Usage
 
