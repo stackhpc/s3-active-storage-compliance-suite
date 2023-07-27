@@ -22,12 +22,11 @@ jobs:
       - name: Install compliance test suite dependencies
         run: pip install -r requirements.txt
 
-      - name: Install mypy type checker
-        run: pip install mypy boto3-stubs botocore-stubs types-requests
-
       - name: Run mypy type checker
         run: mypy compliance
 
+      - name: Run flake8
+        run: flake8
   compliance-test:
     runs-on: ubuntu-latest
     steps:

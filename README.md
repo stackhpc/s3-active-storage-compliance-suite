@@ -56,3 +56,13 @@ There are procedurally generated test cases to cover various combinations of red
 The `scripts/run-benchmarks.py` file can be used to benchmark running instances of the active storage proxy. To do so, edit the required config parameters at the top of the script (`PROXY_URLS`, `S3_SOURCE` & `AUTH`) and then run the script. 
 
 The benchmarking process will generate a few numpy arrays then upload them to a test bucket within the configured S3 source. The `sum` operation is then called repeatedly on each of these arrays to collect some timing statistics. For convenience, the script will also collect timing stats while *bypassing* the active storage proxy (i.e. fetching the full array from S3 and then performing the sum locally) to indicate how much of an improvement the active storage proxy is providing. Once all benchmark runs are finished, a boxplot figure will be generated (at the path `./benchmark--{timestamp}.png`) to summarize the benchmark results. Finally, all generated test data is removed from the S3 source.
+
+## Contributing
+
+The following checks are run in CI (from the repository root):
+
+```
+black .
+mypy compliance
+flake8
+```
