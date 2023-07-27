@@ -1,5 +1,8 @@
 import boto3
 import numpy as np
+import numpy.ma as ma
+
+from .missing import MissingValue, MissingValues, ValidMax, ValidMin, ValidRange
 
 # Location of upstream S3 data
 S3_SOURCE = "http://localhost:9000"
@@ -24,8 +27,8 @@ ALLOWED_DTYPES = ["int32", "int64", "float32", "float64", "uint32", "uint64"]
 
 OPERATION_FUNCS = {
     "select": lambda arr: arr,
-    "sum": lambda arr: np.sum(arr, dtype=arr.dtype),
-    "count": lambda arr: np.prod(arr.shape, dtype=np.int64),
+    "sum": lambda arr: ma.sum(arr, dtype=arr.dtype),
+    "count": lambda arr: np.array(ma.count(arr)),
     "max": np.max,
     "min": np.min,
 }
@@ -44,4 +47,14 @@ COMPRESSION_ALGS = [
 # May be set to an empty list if filters are not supported by the server.
 FILTER_ALGS = [
     "shuffle",
+]
+
+# List of missing data classes.
+# May be set to an empty list if missing data is not supported by the server.
+MISSING_DATA = [
+    MissingValue,
+    MissingValues,
+    ValidMax,
+    ValidMin,
+    ValidRange,
 ]

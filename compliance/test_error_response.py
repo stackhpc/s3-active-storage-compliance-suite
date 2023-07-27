@@ -1,11 +1,19 @@
-import uuid
-import requests
-import pytest
 import numpy as np
+import pytest
+import requests
+import uuid
 
-from .config import s3_client, S3_SOURCE, BUCKET_NAME, PROXY_URL, AWS_ID, AWS_PASSWORD
+from .config import (
+    s3_client,
+    S3_SOURCE,
+    BUCKET_NAME,
+    PROXY_URL,
+    AWS_ID,
+    AWS_PASSWORD,
+    MISSING_DATA,
+)
+from .mocks import MockBadRequest
 from .utils import fetch_from_s3, ensure_test_bucket_exists
-from .mocks import MockResponse
 
 
 def make_request(
@@ -17,6 +25,7 @@ def make_request(
     order="C",
     shape=[10],
     selection=[[0, 5, 2]],
+    missing=None,
 ):
     """Helper function which by default makes a valid request but can be used to test invalid requests by modifying kwargs"""
 
@@ -37,7 +46,11 @@ def make_request(
         "shape": shape,
         "order": order,
         "selection": selection,
+        "missing": missing,
     }
+
+    # Remove unset values.
+    request_data = {k: v for k, v in request_data.items() if v is not None}
 
     response = requests.post(
         f"{PROXY_URL}/v1/{op}/", json=request_data, auth=(AWS_ID, AWS_PASSWORD)
@@ -60,9 +73,7 @@ def test_nonexistent_file(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=404, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(filename=invalid_filename)
 
@@ -83,9 +94,7 @@ def test_invalid_operation(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=404, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(op=invalid_operation)
 
@@ -108,9 +117,7 @@ def test_invalid_dtype(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(dtype=invalid_dtype)
 
@@ -131,9 +138,7 @@ def test_invalid_offset(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(offset=invalid_offset)
 
@@ -154,9 +159,7 @@ def test_invalid_size(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(size=invalid_size)
 
@@ -177,9 +180,7 @@ def test_invalid_shape(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(shape=invalid_shape)
 
@@ -200,9 +201,7 @@ def test_invalid_selection(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(selection=invalid_selection)
 
@@ -223,9 +222,7 @@ def test_shape_without_selection(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(**invalid_shape_and_selection)
 
@@ -247,9 +244,7 @@ def test_invalid_ordering(monkeypatch):
         monkeypatch.setattr(
             requests,
             "post",
-            lambda *args, **kwargs: MockResponse(
-                status_code=400, array_data=np.array([]), operation_result=np.array([])
-            ),
+            lambda *args, **kwargs: MockBadRequest(),
         )
     response = make_request(order=invalid_ordering)
 
@@ -259,4 +254,49 @@ def test_invalid_ordering(monkeypatch):
     if PROXY_URL:
         assert response.headers.get("content-type") == "application/json"
         assert "order" in response.text.lower()
+        response.json()
+
+
+@pytest.mark.skipif(not MISSING_DATA, reason="Missing data not supported")
+@pytest.mark.parametrize(
+    "dtype, missing",
+    [
+        ("int64", "string"),  # Must be a dict
+        ("int64", {"invalid_missing": 42}),  # Invalid key
+        ("int32", {"missing_value": np.iinfo("int32").min - 1}),  # Less than min
+        ("int32", {"missing_value": np.iinfo("int32").max + 1}),  # Greater than max
+        ("int32", {"missing_value": -1.0}),  # Float for int
+        ("int64", {"missing_value": np.iinfo("int64").min - 1}),  # Less than min
+        ("int64", {"missing_value": np.iinfo("int64").max + 1}),  # Greater than max
+        ("int64", {"missing_value": -1.0}),  # Float for int
+        ("uint32", {"missing_values": [-1]}),  # Negative for unsigned int
+        (
+            "uint32",
+            {"missing_values": [np.iinfo("uint32").max + 1]},
+        ),  # Greater than max
+        ("uint32", {"valid_min": 1.0}),  # Float for unsigned int
+        ("uint64", {"valid_min": [np.iinfo("uint64").max + 1]}),  # Greater than max
+        ("uint64", {"valid_min": 1.0}),  # Float for unsigned int
+        ("float32", {"valid_max": np.finfo("float32").max * 2}),  # Greater than max
+        ("float32", {"valid_max": np.finfo("float32").min * 2}),  # Less than min
+        ("float32", {"valid_range": [1.0, 0.0]}),  # min > max
+        ("float64", {"valid_range": [1.0, 1.0]}),  # min == max
+    ],
+)
+def test_invalid_missing_data(monkeypatch, dtype, missing):
+    # Make proxy request (mocking response if needed)
+    if PROXY_URL is None:
+        monkeypatch.setattr(
+            requests,
+            "post",
+            lambda *args, **kwargs: MockBadRequest(),
+        )
+    response = make_request(dtype=dtype, missing=missing)
+
+    # Check the response is sensible
+    assert response.status_code == 400
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get("content-type") == "application/json"
+        assert "missing" in response.text.lower()
         response.json()

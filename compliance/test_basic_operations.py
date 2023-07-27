@@ -1,11 +1,12 @@
 import json
 import math
+import numpy as np
+import numpy.ma as ma
 import os
 import pytest
 import requests
-import numpy as np
-
 from typing import List, Union
+
 from .config import (
     s3_client,
     S3_SOURCE,
@@ -18,15 +19,18 @@ from .config import (
     TEST_X_ACTIVESTORAGE_COUNT_HEADER,
     COMPRESSION_ALGS,
     FILTER_ALGS,
+    MISSING_DATA,
 )
-from .utils import filter_pipeline, ensure_test_bucket_exists, upload_to_s3
+from .missing import Missing, ValidMax, ValidMin
 from .mocks import MockResponse
+from .utils import filter_pipeline, ensure_test_bucket_exists, upload_to_s3
 
 
 def generate_test_array(
     dtype: str,
     shape: list[int],
     size: Union[int, None],
+    missing: Union[Missing, None],
 ):
     """
     Generate and return a numpy array of random data.
@@ -46,7 +50,15 @@ def generate_test_array(
     # Generate some test data
     # This is the raw data that will be uploaded to S3, and is currently a 1D array.
     # (multiply random array by 10 so that int dtypes don't all round down to zeros)
-    return (10 * np.random.rand(num_elements)).astype(dtype)
+    data = (10 * np.random.rand(num_elements)).astype(dtype)
+    # print("Raw\n", data)
+
+    if missing:
+        # Mark some data as missing.
+        data = missing.make_holes(data)
+        # print("Masked\n", data)
+
+    return data
 
 
 def generate_object_data(
@@ -88,7 +100,11 @@ def create_test_s3_object(
     upload_to_s3(s3_client, object_data, filename)
 
 
-def calculate_expected_result(data, operation, shape, selection, order):
+def perform_operation(data, operation):
+    return OPERATION_FUNCS[operation](data)
+
+
+def calculate_expected_result(data, operation, shape, selection, order, missing):
     """
     Calculate the expected result from applying the operation to the data.
     Returns the result as a numpy array or scalar.
@@ -96,14 +112,30 @@ def calculate_expected_result(data, operation, shape, selection, order):
     # Reshape the array to apply the shape (if specified) and C/F order.
     data = data.reshape(*(shape or data.shape), order=order)
 
+    if missing:
+        unmasked_result = perform_operation(data, operation)
+        data = missing.mask(data)
+
     # Create pythonic slices object
     # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
     if selection:
+        unselected_result = perform_operation(data, operation)
         slices = tuple(slice(*s) for s in selection)
         data = data[slices]
 
     # Perform main operation
-    operation_result = OPERATION_FUNCS[operation](data)
+    operation_result = perform_operation(data, operation)
+
+    # Verify that the parameters affect the result, so that we can verify
+    # that they've been applied.
+
+    # A select result is not affected by missing data.
+    if missing and operation != "select":
+        assert not np.array_equal(operation_result, unmasked_result)
+
+    # A min/max result may not be affected by a selection.
+    if selection and operation not in ["min", "max"]:
+        assert not np.array_equal(operation_result, unselected_result)
 
     return data, operation_result
 
@@ -120,6 +152,7 @@ def create_test_data(
     trailing: Union[int, None] = None,
     compression: Union[str, None] = None,
     filters: Union[List[str], None] = None,
+    missing: Union[Missing, None] = None,
 ):
     """
     Creates some test data and uploads it to the configured
@@ -130,7 +163,7 @@ def create_test_data(
       * the size in bytes of the compressed and/or filtered data
     """
     # Generate a test array
-    data = generate_test_array(dtype, shape, size)
+    data = generate_test_array(dtype, shape, size, missing)
 
     # Generate S3 object data from the array
     object_data, compressed_size = generate_object_data(
@@ -147,7 +180,12 @@ def create_test_data(
 
     # Calculate and return the expected result.
     data, operation_result = calculate_expected_result(
-        data, operation, shape, selection, order
+        data,
+        operation,
+        shape,
+        selection,
+        order,
+        missing,
     )
     return data, operation_result, compressed_size
 
@@ -177,10 +215,11 @@ def test_basic_operation(
     trailing=None,
     compression=None,
     filters=None,
+    missing=None,
 ):
     """Test basic functionality of reduction operations on various types of input data"""
 
-    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}-compression-{compression}.bin"
+    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}-compression-{compression}-filters-{filters}-missing-{missing}.bin"
     array_data, operation_result, compressed_size = create_test_data(
         filename,
         operation,
@@ -193,6 +232,7 @@ def test_basic_operation(
         trailing,
         compression,
         filters,
+        missing,
     )
 
     request_data = {
@@ -214,6 +254,10 @@ def test_basic_operation(
             {"id": filter, "element_size": np.dtype(dtype).itemsize}
             for filter in filters
         ]
+    if missing:
+        request_data["missing"] = missing.to_request_data()
+
+    # print(request_data)
 
     # Mock proxy responses if url not set
     if PROXY_URL is None:
@@ -254,7 +298,9 @@ def test_basic_operation(
     proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
     assert proxy_shape == expected_shape
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
-        assert proxy_response.headers["x-activestorage-count"] == str(array_data.size)
+        assert proxy_response.headers["x-activestorage-count"] == str(
+            ma.count(array_data)
+        )
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
     assert np.allclose(
         proxy_result, operation_result
@@ -336,4 +382,40 @@ def test_compression(monkeypatch, operation, offset, trailing, compression, filt
         trailing=trailing,
         compression=compression,
         filters=[filter] if filter else None,
+    )
+
+
+@pytest.mark.parametrize("dtype", ALLOWED_DTYPES)
+@pytest.mark.parametrize("operation", OPERATION_FUNCS.keys())
+@pytest.mark.parametrize(
+    "selection",
+    [
+        None,
+        [[0, 10, 2], [0, 2, 1], [0, 3, 1]],
+    ],
+)
+@pytest.mark.parametrize("missing_cls", MISSING_DATA)
+def test_missing_data(monkeypatch, dtype, operation, selection, missing_cls):
+    """
+    Test datasets with missing data.
+    """
+    # Certain operations are not easily tested, so skip them.
+    invalid = [
+        ("min", ValidMax),
+        ("max", ValidMin),
+    ]
+    if (operation, missing_cls) in invalid:
+        pytest.skip(f"Can't test operation {operation} with missing {missing_cls}")
+
+    # Create an appropriate missing data description for this dtype and operation.
+    missing = missing_cls.create(np.dtype(dtype), operation)
+
+    test_basic_operation(
+        monkeypatch,
+        operation,
+        dtype,
+        [10, 5, 2],
+        selection,
+        "C",
+        missing=missing,
     )
