@@ -67,7 +67,7 @@ def main(workers, request_count):
         run_timings = {}
 
         # Generate and upload the test data
-        filename = f"test-data.dat"
+        filename = "test-data.dat"
         X = np.random.rand(N, N).astype("float32")
         N_bytes = X.itemsize * X.size / 10**6
         with s3_fs.open(BUCKET / filename, "wb") as file:
