@@ -5,6 +5,7 @@ import numpy.ma as ma
 import os
 import pytest
 import requests
+import sys
 from typing import List, Union
 
 from .config import (
@@ -20,6 +21,7 @@ from .config import (
     COMPRESSION_ALGS,
     FILTER_ALGS,
     MISSING_DATA,
+    TEST_BYTE_ORDER,
 )
 from .missing import Missing, ValidMax, ValidMin
 from .mocks import MockResponse
@@ -68,6 +70,7 @@ def generate_object_data(
     compression: Union[str, None],
     filters: Union[List[str], None],
     dtype: str,
+    byte_order: Union[str, None],
 ):
     """
     Generate S3 object data from a numpy array.
@@ -76,8 +79,15 @@ def generate_object_data(
       * the object data
       * the size of the data in bytes after application of the filter pipeline
     """
+    if byte_order and byte_order != sys.byteorder:
+        # Swap the byte order of the underlying data.
+        # Unsure why data.newbyteorder() doesn't work.
+        data = data.byteswap()
+
     # Convert to bytes for upload
     data_bytes = data.tobytes()
+    print(data_bytes)
+    # assert False
 
     # Apply the compression and filter pipeline.
     element_size = np.dtype(dtype).itemsize
@@ -153,6 +163,7 @@ def create_test_data(
     compression: Union[str, None] = None,
     filters: Union[List[str], None] = None,
     missing: Union[Missing, None] = None,
+    byte_order: Union[str, None] = None,
 ):
     """
     Creates some test data and uploads it to the configured
@@ -173,6 +184,7 @@ def create_test_data(
         compression,
         filters,
         dtype,
+        byte_order,
     )
 
     # Create an object in S3
@@ -216,10 +228,11 @@ def test_basic_operation(
     compression=None,
     filters=None,
     missing=None,
+    byte_order=None,
 ):
     """Test basic functionality of reduction operations on various types of input data"""
 
-    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}-compression-{compression}-filters-{filters}-missing-{missing}.bin"
+    filename = f"test--operation-{operation}-dtype-{dtype}--shape-{shape}-selection-{selection}-order-{order}-offset-{offset}-size-{size}-trailing-{trailing}-compression-{compression}-filters-{filters}-missing-{missing}-byte-order-{byte_order}.bin"
     array_data, operation_result, compressed_size = create_test_data(
         filename,
         operation,
@@ -233,6 +246,7 @@ def test_basic_operation(
         compression,
         filters,
         missing,
+        byte_order,
     )
 
     request_data = {
@@ -256,6 +270,8 @@ def test_basic_operation(
         ]
     if missing:
         request_data["missing"] = missing.to_request_data()
+    if byte_order:
+        request_data["byte_order"] = byte_order
 
     # print(request_data)
 
@@ -301,6 +317,8 @@ def test_basic_operation(
         assert proxy_response.headers["x-activestorage-count"] == str(
             ma.count(array_data)
         )
+    if TEST_BYTE_ORDER:
+        assert proxy_response.headers["x-activestorage-byte-order"] == "little"
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
     assert np.allclose(
         proxy_result, operation_result
@@ -418,4 +436,30 @@ def test_missing_data(monkeypatch, dtype, operation, selection, missing_cls):
         selection,
         "C",
         missing=missing,
+    )
+
+
+@pytest.mark.skipif(not TEST_BYTE_ORDER, reason="Byte order not supported")
+@pytest.mark.parametrize("dtype", ALLOWED_DTYPES)
+@pytest.mark.parametrize("operation", OPERATION_FUNCS.keys())
+@pytest.mark.parametrize(
+    "selection",
+    [
+        None,
+        [[0, 10, 2], [0, 2, 1], [0, 3, 1]],
+    ],
+)
+@pytest.mark.parametrize("byte_order", ["little", "big"])
+def test_byte_order(monkeypatch, dtype, operation, selection, byte_order):
+    """
+    Test datasets with different byte orders.
+    """
+    test_basic_operation(
+        monkeypatch,
+        operation,
+        dtype,
+        [10, 5, 2],
+        selection,
+        "C",
+        byte_order=byte_order,
     )

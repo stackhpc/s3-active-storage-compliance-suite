@@ -43,6 +43,7 @@ This is addressed through configuration variables in `compliance/config.py`.
 - `COMPRESSION_ALGS` - List of names of compression algorithms to test. May be set to an empty list.
 - `FILTER_ALGS` - List of names of filter algorithms to test. May be set to an empty list.
 - `MISSING_DATA` - List of missing data description classes in `compliance/missing.py`. May be set to an empty list.
+- `TEST_BYTE_ORDER` - Whether to test data with different byte orders (endianness).
 
 ### Implementation details
 

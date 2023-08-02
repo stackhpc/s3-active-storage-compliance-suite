@@ -11,6 +11,7 @@ from .config import (
     AWS_ID,
     AWS_PASSWORD,
     MISSING_DATA,
+    TEST_BYTE_ORDER,
 )
 from .mocks import MockBadRequest
 from .utils import fetch_from_s3, ensure_test_bucket_exists
@@ -26,6 +27,7 @@ def make_request(
     shape=[10],
     selection=[[0, 5, 2]],
     missing=None,
+    byte_order=None,
 ):
     """Helper function which by default makes a valid request but can be used to test invalid requests by modifying kwargs"""
 
@@ -47,6 +49,7 @@ def make_request(
         "order": order,
         "selection": selection,
         "missing": missing,
+        "byte_order": byte_order,
     }
 
     # Remove unset values.
@@ -299,4 +302,24 @@ def test_invalid_missing_data(monkeypatch, dtype, missing):
     if PROXY_URL:
         assert response.headers.get("content-type") == "application/json"
         assert "missing" in response.text.lower()
+        response.json()
+
+
+@pytest.mark.skipif(not TEST_BYTE_ORDER, reason="Byte order not supported")
+def test_invalid_byte_order(monkeypatch):
+    # Make proxy request (mocking response if needed)
+    if PROXY_URL is None:
+        monkeypatch.setattr(
+            requests,
+            "post",
+            lambda *args, **kwargs: MockBadRequest(),
+        )
+    response = make_request(byte_order="middle")
+
+    # Check the response is sensible
+    assert response.status_code == 400
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get("content-type") == "application/json"
+        assert "byte_order" in response.text.lower()
         response.json()
