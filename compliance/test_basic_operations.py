@@ -12,6 +12,7 @@ from .config import (
     s3_client,
     S3_SOURCE,
     PROXY_URL,
+    PROXY_CA_CERT,
     BUCKET_NAME,
     ALLOWED_DTYPES,
     OPERATION_FUNCS,
@@ -290,7 +291,10 @@ def test_basic_operation(
 
     # Fetch response from proxy
     proxy_response = requests.post(
-        f"{PROXY_URL}/v1/{operation}/", json=request_data, auth=(AWS_ID, AWS_PASSWORD)
+        f"{PROXY_URL}/v1/{operation}/",
+        json=request_data,
+        auth=(AWS_ID, AWS_PASSWORD),
+        verify=(PROXY_CA_CERT or True),
     )
 
     # For debugging failed tests
