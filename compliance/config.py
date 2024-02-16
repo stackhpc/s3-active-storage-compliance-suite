@@ -58,3 +58,6 @@ MISSING_DATA = [
     ValidMin,
     ValidRange,
 ]
+
+# Whether to test data with different byte orders (endianness).
+TEST_BYTE_ORDER = True
