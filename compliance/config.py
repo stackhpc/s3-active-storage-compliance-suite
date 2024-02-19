@@ -14,6 +14,8 @@ AWS_PASSWORD = "minioadmin"
 BUCKET_NAME = "active-storage-compliance-test-data"
 # Address of active storage proxy to be tested - setting value to 'None' will result in proxy responses being mocked by pytest
 PROXY_URL = "http://localhost:8080"
+# Optional path to CA cert to use for https requests
+PROXY_CA_CERT = None  # '/path/to/certificate.crt'
 
 # Create an S3 client with required credentials
 s3_client = boto3.client(

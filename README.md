@@ -27,6 +27,8 @@ To run the compliance test suite on your own implementation of an S3 active stor
 
 - `PROXY_URL` - The address for your active storage proxy implementation (e.g. `https://s3-proxy.example.com/`)
 
+- `PROXY_CA_CERT` - Optional path to a CA certificate for your active storage proxy.
+
 The compliance test suite can then be run by calling 
 ```
 pytest

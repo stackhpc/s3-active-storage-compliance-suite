@@ -8,6 +8,7 @@ from .config import (
     S3_SOURCE,
     BUCKET_NAME,
     PROXY_URL,
+    PROXY_CA_CERT,
     AWS_ID,
     AWS_PASSWORD,
     MISSING_DATA,
@@ -56,7 +57,10 @@ def make_request(
     request_data = {k: v for k, v in request_data.items() if v is not None}
 
     response = requests.post(
-        f"{PROXY_URL}/v1/{op}/", json=request_data, auth=(AWS_ID, AWS_PASSWORD)
+        f"{PROXY_URL}/v1/{op}/",
+        json=request_data,
+        auth=(AWS_ID, AWS_PASSWORD),
+        verify=(PROXY_CA_CERT or True),
     )
     if PROXY_URL is not None:
         print(response.text)  # For debugging
