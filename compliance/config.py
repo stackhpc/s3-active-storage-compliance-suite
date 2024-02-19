@@ -12,6 +12,8 @@ AWS_ID = "minioadmin"
 AWS_PASSWORD = "minioadmin"
 # S3 bucket in which to generate test data
 BUCKET_NAME = "active-storage-compliance-test-data"
+# Public S3 bucket in which to generate test data
+PUBLIC_BUCKET_NAME = "active-storage-compliance-test-data-public"
 # Address of active storage proxy to be tested - setting value to 'None' will result in proxy responses being mocked by pytest
 PROXY_URL = "http://localhost:8080"
 # Optional path to CA cert to use for https requests
@@ -63,3 +65,6 @@ MISSING_DATA = [
 
 # Whether to test data with different byte orders (endianness).
 TEST_BYTE_ORDER = True
+
+# Whether to test data stored in publicly accessible buckets.
+TEST_PUBLIC_BUCKET = True

@@ -6,7 +6,6 @@ import uuid
 from .config import (
     s3_client,
     S3_SOURCE,
-    BUCKET_NAME,
     PROXY_URL,
     PROXY_CA_CERT,
     AWS_ID,
@@ -15,7 +14,7 @@ from .config import (
     TEST_BYTE_ORDER,
 )
 from .mocks import MockBadRequest
-from .utils import fetch_from_s3, ensure_test_bucket_exists
+from .utils import fetch_from_s3, ensure_test_bucket_exists, get_bucket_name
 
 
 def make_request(
@@ -29,19 +28,21 @@ def make_request(
     selection=[[0, 5, 2]],
     missing=None,
     byte_order=None,
+    authenticated: bool = True,
 ):
     """Helper function which by default makes a valid request but can be used to test invalid requests by modifying kwargs"""
 
+    bucket = get_bucket_name()
     ensure_test_bucket_exists()
 
     if filename is None:
-        filename = s3_client.list_objects_v2(Bucket=BUCKET_NAME)["Contents"][0][
+        filename = s3_client.list_objects_v2(Bucket=bucket)["Contents"][0][
             "Key"
         ]  # Use any valid filename which exists in test bucket
 
     request_data = {
         "source": S3_SOURCE,
-        "bucket": BUCKET_NAME,
+        "bucket": bucket,
         "object": filename,
         "dtype": dtype,
         "offset": offset,
@@ -56,10 +57,11 @@ def make_request(
     # Remove unset values.
     request_data = {k: v for k, v in request_data.items() if v is not None}
 
+    auth = (AWS_ID, AWS_PASSWORD) if authenticated else None
     response = requests.post(
         f"{PROXY_URL}/v1/{op}/",
         json=request_data,
-        auth=(AWS_ID, AWS_PASSWORD),
+        auth=auth,
         verify=(PROXY_CA_CERT or True),
     )
     if PROXY_URL is not None:
@@ -326,4 +328,23 @@ def test_invalid_byte_order(monkeypatch):
     if PROXY_URL:
         assert response.headers.get("content-type") == "application/json"
         assert "byte_order" in response.text.lower()
+        response.json()
+
+
+def test_no_auth(monkeypatch):
+    # Make proxy request (mocking response if needed)
+    if PROXY_URL is None:
+        monkeypatch.setattr(
+            requests,
+            "post",
+            lambda *args, **kwargs: MockBadRequest(),
+        )
+    response = make_request(authenticated=False)
+
+    # Check the response is sensible
+    assert response.status_code == 401
+    # Check extra stuff if not mocking test result
+    if PROXY_URL:
+        assert response.headers.get("content-type") == "application/json"
+        assert "Access Denied" in response.text
         response.json()

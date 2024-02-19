@@ -13,7 +13,6 @@ from .config import (
     S3_SOURCE,
     PROXY_URL,
     PROXY_CA_CERT,
-    BUCKET_NAME,
     ALLOWED_DTYPES,
     OPERATION_FUNCS,
     AWS_ID,
@@ -23,10 +22,16 @@ from .config import (
     FILTER_ALGS,
     MISSING_DATA,
     TEST_BYTE_ORDER,
+    TEST_PUBLIC_BUCKET,
 )
 from .missing import Missing, ValidMax, ValidMin
 from .mocks import MockResponse
-from .utils import filter_pipeline, ensure_test_bucket_exists, upload_to_s3
+from .utils import (
+    filter_pipeline,
+    ensure_test_bucket_exists,
+    get_bucket_name,
+    upload_to_s3,
+)
 
 
 def generate_test_array(
@@ -102,13 +107,14 @@ def generate_object_data(
 def create_test_s3_object(
     object_data,
     filename,
+    public: bool,
 ):
     """
     Create an S3 object from a list of bytes.
     """
     # Add data to s3 bucket so that proxy can use it
-    ensure_test_bucket_exists()
-    upload_to_s3(s3_client, object_data, filename)
+    ensure_test_bucket_exists(public)
+    upload_to_s3(s3_client, object_data, filename, public)
 
 
 def perform_operation(data, operation):
@@ -165,6 +171,7 @@ def create_test_data(
     filters: Union[List[str], None] = None,
     missing: Union[Missing, None] = None,
     byte_order: Union[str, None] = None,
+    public: bool = False,
 ):
     """
     Creates some test data and uploads it to the configured
@@ -189,7 +196,7 @@ def create_test_data(
     )
 
     # Create an object in S3
-    create_test_s3_object(object_data, filename)
+    create_test_s3_object(object_data, filename, public)
 
     # Calculate and return the expected result.
     data, operation_result = calculate_expected_result(
@@ -230,6 +237,7 @@ def test_basic_operation(
     filters=None,
     missing=None,
     byte_order=None,
+    public: bool = False,
 ):
     """Test basic functionality of reduction operations on various types of input data"""
 
@@ -248,11 +256,12 @@ def test_basic_operation(
         filters,
         missing,
         byte_order,
+        public,
     )
 
     request_data = {
         "source": S3_SOURCE,
-        "bucket": BUCKET_NAME,
+        "bucket": get_bucket_name(public),
         "object": filename,
         "dtype": dtype,
         "offset": offset,
@@ -290,10 +299,11 @@ def test_basic_operation(
         )
 
     # Fetch response from proxy
+    auth = None if public else (AWS_ID, AWS_PASSWORD)
     proxy_response = requests.post(
         f"{PROXY_URL}/v1/{operation}/",
         json=request_data,
-        auth=(AWS_ID, AWS_PASSWORD),
+        auth=auth,
         verify=(PROXY_CA_CERT or True),
     )
 
@@ -466,4 +476,20 @@ def test_byte_order(monkeypatch, dtype, operation, selection, byte_order):
         selection,
         "C",
         byte_order=byte_order,
+    )
+
+
+@pytest.mark.skipif(not TEST_PUBLIC_BUCKET, reason="Public buckets not supported")
+def test_public_bucket(monkeypatch):
+    """
+    Test datasets stored in public buckets.
+    """
+    test_basic_operation(
+        monkeypatch,
+        "sum",
+        "int64",
+        [10, 5, 2],
+        None,
+        "C",
+        public=True,
     )
