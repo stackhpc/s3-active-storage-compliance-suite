@@ -92,7 +92,7 @@ def generate_object_data(
 
     # Convert to bytes for upload
     data_bytes = data.tobytes()
-    print(data_bytes)
+    # print(data_bytes)
     # assert False
 
     # Apply the compression and filter pipeline.
@@ -117,11 +117,11 @@ def create_test_s3_object(
     upload_to_s3(s3_client, object_data, filename, public)
 
 
-def perform_operation(data, operation):
-    return OPERATION_FUNCS[operation](data)
+def perform_operation(data, operation, axis):
+    return OPERATION_FUNCS[operation](data, axis)
 
 
-def calculate_expected_result(data, operation, shape, selection, order, missing):
+def calculate_expected_result(data, operation, shape, selection, axis, order, missing):
     """
     Calculate the expected result from applying the operation to the data.
     Returns the result as a numpy array or scalar.
@@ -130,18 +130,18 @@ def calculate_expected_result(data, operation, shape, selection, order, missing)
     data = data.reshape(*(shape or data.shape), order=order)
 
     if missing:
-        unmasked_result = perform_operation(data, operation)
+        unmasked_result = perform_operation(data, operation, axis)
         data = missing.mask(data)
 
     # Create pythonic slices object
     # (must be a tuple of slice objects for multi-dimensional indexing of numpy arrays)
     if selection:
-        unselected_result = perform_operation(data, operation)
+        unselected_result = perform_operation(data, operation, axis)
         slices = tuple(slice(*s) for s in selection)
         data = data[slices]
 
     # Perform main operation
-    operation_result = perform_operation(data, operation)
+    operation_result = perform_operation(data, operation, axis)
 
     # Verify that the parameters affect the result, so that we can verify
     # that they've been applied.
@@ -163,6 +163,7 @@ def create_test_data(
     dtype: str,
     shape: list[int],
     selection: list[list[int]],
+    axis: Union[int, None],
     offset: Union[int, None],
     size: Union[int, None],
     order: str,
@@ -204,6 +205,7 @@ def create_test_data(
         operation,
         shape,
         selection,
+        axis,
         order,
         missing,
     )
@@ -213,12 +215,15 @@ def create_test_data(
 # Stacking parametrization decorators tells pytest to check every possible combination of parameters
 @pytest.mark.parametrize("order", ["C", "F"])
 @pytest.mark.parametrize(
-    "shape, selection",
+    "shape, selection, axis",
     [
-        (None, None),
-        ([5, 5, 4], None),
-        ([100], [[-10, -50, -4]]),
-        ([20, 5], [[0, 19, 2], [1, 3, 1]]),
+        (None, None, None),
+        ([5, 5, 4], None, None),
+        ([100], [[-10, -50, -4]], None),
+        ([100], [[-10, -50, -4]], 0),
+        ([20, 5], [[0, 19, 2], [1, 3, 1]], None),
+        ([20, 5], [[0, 19, 2], [1, 3, 1]], 0),
+        ([20, 5], [[0, 19, 2], [1, 3, 1]], 1),
     ],
 )
 @pytest.mark.parametrize("dtype", ALLOWED_DTYPES)
@@ -229,6 +234,7 @@ def test_basic_operation(
     dtype,
     shape,
     selection,
+    axis,
     order,
     offset=None,
     size=None,
@@ -248,6 +254,7 @@ def test_basic_operation(
         dtype,
         shape,
         selection,
+        axis,
         offset,
         size,
         order,
@@ -267,6 +274,7 @@ def test_basic_operation(
         "offset": offset,
         "size": compressed_size,
         "shape": shape,
+        "axis": axis,
         "order": order,
         "selection": selection,
     }
@@ -328,9 +336,31 @@ def test_basic_operation(
     proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
     assert proxy_shape == expected_shape
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
-        assert proxy_response.headers["x-activestorage-count"] == str(
-            ma.count(array_data)
-        )
+        # assert proxy_response.headers["x-activestorage-count"] == str(
+        #     ma.count(array_data)
+        # )
+
+        # TODO: Remove conditional and use axis arg for all operations
+        # once implemented on Reductionist side
+        expected = ma.count(array_data)
+        if operation == "sum":
+            expected = ma.count(array_data, axis)
+
+        # Since proxy always returns count as list[int]
+        # reverse the numpy semantics of converting 0d arrays
+        # to ints here to make sure they remain as list[int]
+        if isinstance(expected, int):
+            expected = [expected]
+        else:
+            expected = expected.tolist()
+            if isinstance(expected, int):
+                expected = [expected]
+
+        # Strip whitespace from between items in stringified list
+        expected = str(expected).replace(" ", "")
+
+        assert proxy_response.headers["x-activestorage-count"] == expected
+
     if TEST_BYTE_ORDER:
         assert proxy_response.headers["x-activestorage-byte-order"] == "little"
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
@@ -348,6 +378,7 @@ param_combos = [
         "int64",  # dtype
         [20],  # shape
         None,  # selection
+        None, # axis
         8 * 10,  # offset
         8 * 20,  # size - must equal product of shape * dtype size in bytes
         None,  # trailing data size in bytes
@@ -356,6 +387,7 @@ param_combos = [
         "float32",
         [10, 3],
         [[0, 10, 2], [0, 3, 1]],
+        None,
         42,
         4 * 30,
         42,
@@ -364,6 +396,7 @@ param_combos = [
         "uint32",
         [10, 2, 4],
         [[0, 10, 2], [0, 2, 1], [0, 3, 1]],
+        None,
         4 * 5,
         4 * 80,
         None,
@@ -372,6 +405,7 @@ param_combos = [
         "int32",
         [10, 2, 4],
         [[0, 10, 2], [0, 2, 1], [0, 4, 3]],
+        None,
         4 * 20,
         None,
         None,
@@ -380,17 +414,17 @@ param_combos = [
 
 
 @pytest.mark.parametrize(
-    "dtype, shape, selection, offset, size, trailing", param_combos
+    "dtype, shape, selection, axis, offset, size, trailing", param_combos
 )
 @pytest.mark.parametrize("operation", OPERATION_FUNCS.keys())
 @pytest.mark.parametrize("order", ["C", "F"])
 def test_offset_and_size(
-    monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing
+    monkeypatch, operation, dtype, shape, selection, axis, order, offset, size, trailing
 ):
     # We can still hook into previous test func though to avoid repeated code
     # (maybe there's a more pytest-y way to do this?)
     test_basic_operation(
-        monkeypatch, operation, dtype, shape, selection, order, offset, size, trailing
+        monkeypatch, operation, dtype, shape, selection, axis, order, offset, size, trailing
     )
 
 
@@ -408,6 +442,7 @@ def test_compression(monkeypatch, operation, offset, trailing, compression, filt
         operation,
         "int64",
         [10, 5, 2],
+        None,
         None,
         "C",
         offset,
@@ -448,6 +483,7 @@ def test_missing_data(monkeypatch, dtype, operation, selection, missing_cls):
         dtype,
         [10, 5, 2],
         selection,
+        None,
         "C",
         missing=missing,
     )
@@ -474,6 +510,7 @@ def test_byte_order(monkeypatch, dtype, operation, selection, byte_order):
         dtype,
         [10, 5, 2],
         selection,
+        None,
         "C",
         byte_order=byte_order,
     )
@@ -489,6 +526,7 @@ def test_public_bucket(monkeypatch):
         "sum",
         "int64",
         [10, 5, 2],
+        None,
         None,
         "C",
         public=True,

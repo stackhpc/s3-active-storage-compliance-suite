@@ -29,12 +29,13 @@ s3_client = boto3.client(
 
 ALLOWED_DTYPES = ["int32", "int64", "float32", "float64", "uint32", "uint64"]
 
+# TODO: Use axis arg in all funcs
 OPERATION_FUNCS = {
-    "select": lambda arr: arr,
-    "sum": lambda arr: ma.sum(arr, dtype=arr.dtype),
-    "count": lambda arr: np.array(ma.count(arr)),
-    "max": np.max,
-    "min": np.min,
+    "select": lambda arr, axis: arr,
+    "sum": lambda arr, axis: ma.sum(arr, axis=axis, dtype=arr.dtype),
+    "count": lambda arr, axis: np.array(ma.count(arr)),
+    "max": lambda arr, axis: np.max(arr),
+    "min": lambda arr, axis: np.min(arr),
 }
 
 # Whether to test for the presence of the x-activestorage-count header in responses.
