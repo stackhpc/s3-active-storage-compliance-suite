@@ -224,6 +224,8 @@ def create_test_data(
         ([20, 5], [[0, 19, 2], [1, 3, 1]], None),
         ([20, 5], [[0, 19, 2], [1, 3, 1]], 0),
         ([20, 5], [[0, 19, 2], [1, 3, 1]], 1),
+        ([20, 5], [[0, 19, 2], [1, 3, 1]], (0)),
+        ([20, 5, 1], [[0, 19, 2], [1, 3, 1], [0, 2, 1]], (0, 1)),
     ],
 )
 @pytest.mark.parametrize("dtype", ALLOWED_DTYPES)
@@ -328,7 +330,7 @@ def test_basic_operation(
     # Compare to expected result and make sure response headers are sensible - all comparisons should be done as strings
     print(
         "\nProxy result:", proxy_result, "\nExpected result:", operation_result
-    )  # For debugging
+    )
     assert proxy_response.headers["x-activestorage-dtype"] == (
         request_data["dtype"] if operation != "count" else "int64"
     )
@@ -336,15 +338,8 @@ def test_basic_operation(
     proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
     assert proxy_shape == expected_shape
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
-        # assert proxy_response.headers["x-activestorage-count"] == str(
-        #     ma.count(array_data)
-        # )
-
-        # TODO: Remove conditional and use axis arg for all operations
-        # once implemented on Reductionist side
-        expected = ma.count(array_data)
-        if operation == "sum":
-            expected = ma.count(array_data, axis)
+        # We want to explicitly ignore the axis arg for all select operations
+        expected = ma.count(array_data, axis) if operation != "select" else ma.count(array_data)
 
         # Since proxy always returns count as list[int]
         # reverse the numpy semantics of converting 0d arrays
