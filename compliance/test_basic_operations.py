@@ -224,6 +224,7 @@ def create_test_data(
         ([20, 5], [[0, 19, 2], [1, 3, 1]], None),
         ([20, 5], [[0, 19, 2], [1, 3, 1]], 0),
         ([20, 5], [[0, 19, 2], [1, 3, 1]], 1),
+        ([20, 5], [[0, 19, 2], [1, 3, 1]], ()),
         ([20, 5], [[0, 19, 2], [1, 3, 1]], (0)),
         ([20, 5, 1], [[0, 19, 2], [1, 3, 1], [0, 2, 1]], (0, 1)),
     ],
@@ -328,15 +329,18 @@ def test_basic_operation(
     )
 
     # Compare to expected result and make sure response headers are sensible - all comparisons should be done as strings
-    print(
-        "\nProxy result:", proxy_result, "\nExpected result:", operation_result
-    )
     assert proxy_response.headers["x-activestorage-dtype"] == (
         request_data["dtype"] if operation != "count" else "int64"
     )
     expected_shape = list(operation_result.shape)
     proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
     assert proxy_shape == expected_shape
+
+    proxy_result = proxy_result.reshape(proxy_shape, order=order)
+    print(
+        "\nProxy result:", proxy_result, "\nExpected result:", operation_result
+    )
+
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
         # We want to explicitly ignore the axis arg for all select operations
         expected = ma.count(array_data, axis) if operation != "select" else ma.count(array_data)
@@ -347,7 +351,7 @@ def test_basic_operation(
         if isinstance(expected, int):
             expected = [expected]
         else:
-            expected = expected.tolist()
+            expected = expected.flatten().tolist()
             if isinstance(expected, int):
                 expected = [expected]
 
@@ -358,7 +362,7 @@ def test_basic_operation(
 
     if TEST_BYTE_ORDER:
         assert proxy_response.headers["x-activestorage-byte-order"] == "little"
-    proxy_result = proxy_result.reshape(proxy_shape, order=order)
+
     assert np.allclose(
         proxy_result, operation_result
     ), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
