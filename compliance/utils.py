@@ -76,7 +76,9 @@ def fetch_from_s3(s3_client, filename: str, public: bool = False) -> bytes:
         content = response["Body"].read()
         return content
     except s3_client.exceptions.NoSuchKey:
-        raise FileNotFoundError(f"File '{filename}' not found in S3 bucket '{bucket}'")  # noqa: E713
+        raise FileNotFoundError(
+            f"File '{filename}' not found in S3 bucket '{bucket}'"  # noqa: E713
+        )
 
 
 def filter_pipeline(
