@@ -337,13 +337,15 @@ def test_basic_operation(
     assert proxy_shape == expected_shape
 
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
-    print(
-        "\nProxy result:", proxy_result, "\nExpected result:", operation_result
-    )
+    print("\nProxy result:", proxy_result, "\nExpected result:", operation_result)
 
     if TEST_X_ACTIVESTORAGE_COUNT_HEADER:
         # We want to explicitly ignore the axis arg for all select operations
-        expected = ma.count(array_data, axis) if operation != "select" else ma.count(array_data)
+        expected = (
+            ma.count(array_data, axis)
+            if operation != "select"
+            else ma.count(array_data)
+        )
 
         # Since proxy always returns count as list[int]
         # reverse the numpy semantics of converting 0d arrays
@@ -377,7 +379,7 @@ param_combos = [
         "int64",  # dtype
         [20],  # shape
         None,  # selection
-        None, # axis
+        None,  # axis
         8 * 10,  # offset
         8 * 20,  # size - must equal product of shape * dtype size in bytes
         None,  # trailing data size in bytes
@@ -423,7 +425,16 @@ def test_offset_and_size(
     # We can still hook into previous test func though to avoid repeated code
     # (maybe there's a more pytest-y way to do this?)
     test_basic_operation(
-        monkeypatch, operation, dtype, shape, selection, axis, order, offset, size, trailing
+        monkeypatch,
+        operation,
+        dtype,
+        shape,
+        selection,
+        axis,
+        order,
+        offset,
+        size,
+        trailing,
     )
 
 
