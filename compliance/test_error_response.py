@@ -87,16 +87,17 @@ def test_nonexistent_file(monkeypatch):
     response = make_request(filename=invalid_filename)
 
     # Check the response is sensible
-    # Minio returns 404 but radosgw returs 500 so just check response code is something error-like
+    # Minio returns 404 but radosgw returns 500 so just check response code is something error-like
     assert response.status_code >= 400
     # Check extra stuff if not mocking test result
     if PROXY_URL:
         assert response.headers.get("content-type") == "application/json"
-        assert "NoSuchKey" in response.text  # Check for informative error message
+        # Check for informative error message
+        assert "NoSuchKey" in response.text
 
 
 def test_invalid_operation(monkeypatch):
-    invalid_operation = "this-op-is-not-implented"
+    invalid_operation = "this-op-is-not-implemented"
 
     # Make proxy request
     if PROXY_URL is None:
