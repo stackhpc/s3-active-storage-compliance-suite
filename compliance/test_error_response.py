@@ -59,7 +59,7 @@ def make_request(
 
     auth = (AWS_ID, AWS_PASSWORD) if authenticated else None
     response = requests.post(
-        f"{PROXY_URL}/v1/{op}/",
+        f"{PROXY_URL}/v2/{op}/",
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
