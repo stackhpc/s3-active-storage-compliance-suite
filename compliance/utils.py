@@ -81,6 +81,13 @@ def fetch_from_s3(s3_client, filename: str, public: bool = False) -> bytes:
         )
 
 
+def upload_to_http(http_session, data: bytes, url: str) -> None:
+    """Upload a some binary data to a HTTP server"""
+
+    http_session.put(url, data=data)
+    return
+
+
 def filter_pipeline(
     data: bytes, compression: Optional[str], filters: Optional[list], element_size: int
 ) -> bytes:

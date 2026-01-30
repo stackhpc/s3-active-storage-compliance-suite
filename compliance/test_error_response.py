@@ -41,9 +41,8 @@ def make_request(
         ]  # Use any valid filename which exists in test bucket
 
     request_data = {
-        "source": S3_SOURCE,
-        "bucket": bucket,
-        "object": filename,
+        "interface_type": "s3",
+        "url": f"{S3_SOURCE}/{bucket}/{filename}",
         "dtype": dtype,
         "offset": offset,
         "size": size,
@@ -59,7 +58,7 @@ def make_request(
 
     auth = (AWS_ID, AWS_PASSWORD) if authenticated else None
     response = requests.post(
-        f"{PROXY_URL}/v1/{op}/",
+        f"{PROXY_URL}/v2/{op}/",
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
