@@ -41,9 +41,8 @@ def make_request(
         ]  # Use any valid filename which exists in test bucket
 
     request_data = {
-        "source": S3_SOURCE,
-        "bucket": bucket,
-        "object": filename,
+        "interface_type": "s3",
+        "url": f"{S3_SOURCE}/{bucket}/{filename}",
         "dtype": dtype,
         "offset": offset,
         "size": size,

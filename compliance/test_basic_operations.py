@@ -24,6 +24,11 @@ from .config import (
     MISSING_DATA,
     TEST_BYTE_ORDER,
     TEST_PUBLIC_BUCKET,
+    TEST_HTTP_OBJECT_STORE,
+    http_session,
+    HTTP_SOURCE,
+    HTTP_USERNAME,
+    HTTP_PASSWORD,
     TEST_CBOR_PAYLOAD,
 )
 from .missing import Missing, ValidMax, ValidMin
@@ -33,6 +38,7 @@ from .utils import (
     ensure_test_bucket_exists,
     get_bucket_name,
     upload_to_s3,
+    upload_to_http,
 )
 
 
@@ -106,17 +112,21 @@ def generate_object_data(
     return object_data, len(filtered_data)
 
 
-def create_test_s3_object(
+def create_test_object(
     object_data,
     filename,
     public: bool,
 ):
     """
-    Create an S3 object from a list of bytes.
+    Create S3 / HTTP object from a list of bytes.
     """
     # Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists(public)
     upload_to_s3(s3_client, object_data, filename, public)
+
+    if TEST_HTTP_OBJECT_STORE:
+        # Add data to http so that proxy can use it
+        upload_to_http(http_session, object_data, f"{HTTP_SOURCE}/upload/{filename}")
 
 
 def perform_operation(data, operation, axis):
@@ -198,8 +208,8 @@ def create_test_data(
         byte_order,
     )
 
-    # Create an object in S3
-    create_test_s3_object(object_data, filename, public)
+    # Create an object in S3 and HTTP
+    create_test_object(object_data, filename, public)
 
     # Calculate and return the expected result.
     data, operation_result = calculate_expected_result(
@@ -271,11 +281,10 @@ def test_basic_operation(
         public,
     )
 
-    def build_request():
+    def build_request(interface_type, url):
         request_data = {
-            "source": S3_SOURCE,
-            "bucket": get_bucket_name(public),
-            "object": filename,
+            "interface_type": interface_type,
+            "url": url,
             "dtype": dtype,
             "offset": offset,
             "size": compressed_size,
@@ -338,7 +347,9 @@ def test_basic_operation(
             }
         )
 
-    request_data = build_request()
+    request_data = build_request(
+        "s3", f"{S3_SOURCE}/{get_bucket_name(public)}/{filename}"
+    )
 
     # print(request_data)
 
@@ -375,9 +386,28 @@ def test_basic_operation(
         parse_response(proxy_response)
     )
 
-    proxy_result = np.frombuffer(
-        proxy_bytes, dtype=proxy_dtype
-    )
+    # Fetch same response from proxy using HTTP
+    if TEST_HTTP_OBJECT_STORE:
+        http_request_data = build_request("http", f"{HTTP_SOURCE}/{filename}")
+        http_auth = (HTTP_USERNAME, HTTP_PASSWORD) if HTTP_USERNAME else None
+        http_proxy_response = requests.post(
+            f"{PROXY_URL}/v2/{operation}/",
+            json=http_request_data,
+            auth=http_auth,
+            verify=(PROXY_CA_CERT or True),
+        )
+        # For debugging failed tests
+        if http_proxy_response.status_code != 200:
+            print(http_proxy_response.text)
+
+        # Parse and serialize the response to the HTTP request
+        http_result = serialize_response(http_proxy_response)
+        # Parse and serialize the response to the S3 request
+        s3_result = serialize_response(proxy_response)
+        # Check S3 and HTTP gave the same results
+        assert s3_result == http_result
+
+    proxy_result = np.frombuffer(proxy_bytes, dtype=proxy_dtype)
 
     # Compare to expected result and make sure response fields are sensible - all comparisons should be done as strings
     assert proxy_dtype == (request_data["dtype"] if operation != "count" else "int64")
