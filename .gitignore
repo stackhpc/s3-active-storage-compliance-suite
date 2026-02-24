@@ -134,3 +134,6 @@ scratchspace.py
 # Test generated files
 testdata/
 scripts/testdata/
+scripts/server.crt
+scripts/server.key
+
