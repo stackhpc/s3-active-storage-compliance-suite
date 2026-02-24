@@ -24,7 +24,7 @@ from .config import (
     MISSING_DATA,
     TEST_BYTE_ORDER,
     TEST_PUBLIC_BUCKET,
-    TEST_CBOR_PAYLOAD,
+    TEST_API_V2,
     TEST_HTTP_OBJECT_STORE,
     http_session,
     HTTP_SOURCE,
@@ -283,8 +283,6 @@ def test_basic_operation(
 
     def build_request(interface_type, url):
         request_data = {
-            "interface_type": interface_type,
-            "url": url,
             "dtype": dtype,
             "offset": offset,
             "size": compressed_size,
@@ -293,6 +291,13 @@ def test_basic_operation(
             "order": order,
             "selection": selection,
         }
+        if TEST_API_V2:
+            request_data["interface_type"] = interface_type
+            request_data["url"] = url
+        else:
+            request_data["source"] = S3_SOURCE
+            request_data["bucket"] = get_bucket_name(public)
+            request_data["object"] = filename
         if compression:
             request_data["compression"] = {"id": compression}
         if filters:
@@ -313,12 +318,12 @@ def test_basic_operation(
         proxy_count = None
         proxy_dtype = None
         proxy_shape = None
-        if TEST_CBOR_PAYLOAD:
+        if TEST_API_V2:
             try:
                 proxy_result = cbor.loads(response.content)
             except Exception as e:
                 pytest.fail(
-                    f"Failed to parse CBOR response: {e} - set TEST_CBOR_PAYLOAD=False ?"
+                    f"Failed to parse CBOR response: {e} - set TEST_API_V2=False ?"
                 )
             # NOTE below that x-activestorage-shape and x-activestorage-count are both arrays
             #      but x-activestorage-count is kept as a string
@@ -350,7 +355,6 @@ def test_basic_operation(
     request_data = build_request(
         "s3", f"{S3_SOURCE}/{get_bucket_name(public)}/{filename}"
     )
-
     # print(request_data)
 
     # Mock proxy responses if url not set
@@ -447,7 +451,7 @@ def test_basic_operation(
         proxy_result, operation_result
     ), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
 
-    if not TEST_CBOR_PAYLOAD:
+    if not TEST_API_V2:
         assert proxy_response.headers["content-length"] == str(
             len(operation_result.tobytes())
         )

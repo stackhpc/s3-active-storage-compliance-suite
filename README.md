@@ -48,6 +48,19 @@ This is addressed through configuration variables in `compliance/config.py`.
 - `TEST_BYTE_ORDER` - Whether to test data with different byte orders (endianness).
 - `TEST_PUBLIC_BUCKET` - Whether to test unauthenticated access to data stored in a public bucket.
 
+### Testing newer active storage servers
+
+As work on the [Reductionist](https://github.com/stackhpc/reductionist-rs) continues, and the compliance suite evolves in parallel, we continue to allow progressive testing of new features with the following configuration variables in `compliance/config.py`.
+
+- `TEST_API_V2` - Whether to switch to `v2` of the `Reductionist` API where different object store backends are available
+- `TEST_HTTP_OBJECT_STORE` - Whether to use the newer `Reductionist` API to test a HTTP object store backend
+- `HTTP_SOURCE` - The URL of a HTTP object store
+- `HTTP_USERNAME` - Username for HTTP object store protected with [HTTP basic access authentication](https://en.wikipedia.org/wiki/Basic_access_authentication)
+- `HTTP_PASSWORD` - Password for authenticated HTTP object store
+
+Testing of the HTTP object storage backend is an optional addition to the compliance suite.
+S3 object storage is still primary and the accompanying scripts in the suite can start both a local [MiniO](https://www.min.io/) S3 object store and [nginx](https://nginx.org/) HTTP object store, populating both with test data before sending separate API requests to Reductionist to ensuire its reductions using both object stores yield the same result.
+
 ### Implementation details
 
 Test data is currently generated as numpy arrays and then uploaded to the configured S3 source in binary format. Following this upload, requests are made to the active storage proxy and the proxy response is compared to the expected result based on the agreed API specification and the generated test arrays.
