@@ -1,3 +1,4 @@
+import cbor2 as cbor
 import json
 import math
 import numpy as np
@@ -23,6 +24,7 @@ from .config import (
     MISSING_DATA,
     TEST_BYTE_ORDER,
     TEST_PUBLIC_BUCKET,
+    TEST_CBOR_PAYLOAD,
 )
 from .missing import Missing, ValidMax, ValidMin
 from .mocks import MockResponse
@@ -269,30 +271,74 @@ def test_basic_operation(
         public,
     )
 
-    request_data = {
-        "source": S3_SOURCE,
-        "bucket": get_bucket_name(public),
-        "object": filename,
-        "dtype": dtype,
-        "offset": offset,
-        "size": compressed_size,
-        "shape": shape,
-        "axis": axis,
-        "order": order,
-        "selection": selection,
-    }
+    def build_request():
+        request_data = {
+            "source": S3_SOURCE,
+            "bucket": get_bucket_name(public),
+            "object": filename,
+            "dtype": dtype,
+            "offset": offset,
+            "size": compressed_size,
+            "shape": shape,
+            "axis": axis,
+            "order": order,
+            "selection": selection,
+        }
+        if compression:
+            request_data["compression"] = {"id": compression}
+        if filters:
+            request_data["filters"] = [
+                {"id": filter, "element_size": np.dtype(dtype).itemsize}
+                for filter in filters
+            ]
+        if missing:
+            request_data["missing"] = missing.to_request_data()
+        if byte_order:
+            request_data["byte_order"] = byte_order
+        return request_data
 
-    if compression:
-        request_data["compression"] = {"id": compression}
-    if filters:
-        request_data["filters"] = [
-            {"id": filter, "element_size": np.dtype(dtype).itemsize}
-            for filter in filters
-        ]
-    if missing:
-        request_data["missing"] = missing.to_request_data()
-    if byte_order:
-        request_data["byte_order"] = byte_order
+    def parse_response(response):
+        # Collate all fields returned by the active storage proxy (Reductionist)
+        proxy_bytes = None
+        proxy_byte_order = None
+        proxy_count = None
+        proxy_dtype = None
+        proxy_shape = None
+        if TEST_CBOR_PAYLOAD:
+            try:
+                proxy_result = cbor.loads(response.content)
+            except Exception as e:
+                pytest.fail(
+                    f"Failed to parse CBOR response: {e} - set TEST_CBOR_PAYLOAD=False ?"
+                )
+            # NOTE below that x-activestorage-shape and x-activestorage-count are both arrays
+            #      but x-activestorage-count is kept as a string
+            proxy_bytes = proxy_result["bytes"]
+            proxy_byte_order = proxy_result["byte_order"]
+            proxy_count = json.dumps(proxy_result["count"], separators=(",", ":"))
+            proxy_dtype = proxy_result["dtype"]
+            proxy_shape = proxy_result["shape"]
+        else:
+            proxy_bytes = response.content
+            proxy_byte_order = response.headers["x-activestorage-byte-order"]
+            proxy_count = response.headers["x-activestorage-count"]
+            proxy_dtype = response.headers["x-activestorage-dtype"]
+            proxy_shape = json.loads(response.headers["x-activestorage-shape"])
+        return (proxy_bytes, proxy_byte_order, proxy_count, proxy_dtype, proxy_shape)
+
+    def serialize_response(response):
+        bytes, byte_order, count, dtype, shape = parse_response(response)
+        return json.dumps(
+            {
+                "bytes": list(bytes),
+                "byte_order": byte_order,
+                "count": count,
+                "dtype": dtype,
+                "shape": shape,
+            }
+        )
+
+    request_data = build_request()
 
     # print(request_data)
 
@@ -312,7 +358,7 @@ def test_basic_operation(
     # Fetch response from proxy
     auth = None if public else (AWS_ID, AWS_PASSWORD)
     proxy_response = requests.post(
-        f"{PROXY_URL}/v1/{operation}/",
+        f"{PROXY_URL}/v2/{operation}/",
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
@@ -324,16 +370,16 @@ def test_basic_operation(
 
     assert proxy_response.status_code == 200
 
-    proxy_result = np.frombuffer(
-        proxy_response.content, dtype=proxy_response.headers["x-activestorage-dtype"]
+    # Parse the response to the S3 request
+    proxy_bytes, proxy_byte_order, proxy_count, proxy_dtype, proxy_shape = (
+        parse_response(proxy_response)
     )
 
-    # Compare to expected result and make sure response headers are sensible - all comparisons should be done as strings
-    assert proxy_response.headers["x-activestorage-dtype"] == (
-        request_data["dtype"] if operation != "count" else "int64"
-    )
+    proxy_result = np.frombuffer(proxy_bytes, dtype=proxy_dtype)
+
+    # Compare to expected result and make sure response fields are sensible - all comparisons should be done as strings
+    assert proxy_dtype == (request_data["dtype"] if operation != "count" else "int64")
     expected_shape = list(operation_result.shape)
-    proxy_shape = json.loads(proxy_response.headers["x-activestorage-shape"])
     assert proxy_shape == expected_shape
 
     proxy_result = proxy_result.reshape(proxy_shape, order=order)
@@ -360,17 +406,19 @@ def test_basic_operation(
         # Strip whitespace from between items in stringified list
         expected = str(expected).replace(" ", "")
 
-        assert proxy_response.headers["x-activestorage-count"] == expected
+        assert proxy_count == expected
 
     if TEST_BYTE_ORDER:
-        assert proxy_response.headers["x-activestorage-byte-order"] == "little"
+        assert proxy_byte_order == "little"
 
     assert np.allclose(
         proxy_result, operation_result
     ), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
-    assert proxy_response.headers["content-length"] == str(
-        len(operation_result.tobytes())
-    )
+
+    if not TEST_CBOR_PAYLOAD:
+        assert proxy_response.headers["content-length"] == str(
+            len(operation_result.tobytes())
+        )
 
 
 # Separate out these tests since valid offset & size values depend on other parameters so combinatorial param approach is too complicated

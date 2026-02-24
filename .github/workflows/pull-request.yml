@@ -41,6 +41,7 @@ jobs:
         with:
           repository: stackhpc/reductionist-rs
           path: reductionist-rs
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Build
         run: make build
