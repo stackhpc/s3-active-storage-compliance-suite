@@ -81,6 +81,8 @@ TEST_CBOR_PAYLOAD = True
 TEST_HTTP_OBJECT_STORE = True
 # Location of upstream HTTP data
 HTTP_SOURCE = "http://localhost:8000"
+# Location of upstream HTTP data (location requires authentication)
+#HTTP_SOURCE = "http://localhost:8000/private"
 # Username for HTTP basic authentication
 HTTP_USERNAME = "admin"
 # Password for HTTP basic authentication
