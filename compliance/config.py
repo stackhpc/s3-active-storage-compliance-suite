@@ -72,6 +72,11 @@ TEST_BYTE_ORDER = True
 # Whether to test data stored in publicly accessible buckets.
 TEST_PUBLIC_BUCKET = True
 
+# Whether to test for the newer style CBOR payload results.
+# This functionality replaces the x-activestorage-* header responses.
+# TEST_CBOR_PAYLOAD = False
+TEST_CBOR_PAYLOAD = True
+
 # Whether to test HTTP object store
 TEST_HTTP_OBJECT_STORE = True
 # Location of upstream HTTP data

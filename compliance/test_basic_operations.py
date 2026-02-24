@@ -1,3 +1,4 @@
+import cbor2 as cbor
 import json
 import math
 import numpy as np
@@ -23,6 +24,7 @@ from .config import (
     MISSING_DATA,
     TEST_BYTE_ORDER,
     TEST_PUBLIC_BUCKET,
+    TEST_CBOR_PAYLOAD,
     TEST_HTTP_OBJECT_STORE,
     http_session,
     HTTP_SOURCE,
@@ -306,11 +308,31 @@ def test_basic_operation(
 
     def parse_response(response):
         # Collate all fields returned by the active storage proxy (Reductionist)
-        proxy_bytes = response.content
-        proxy_byte_order = response.headers["x-activestorage-byte-order"]
-        proxy_count = response.headers["x-activestorage-count"]
-        proxy_dtype = response.headers["x-activestorage-dtype"]
-        proxy_shape = json.loads(response.headers["x-activestorage-shape"])
+        proxy_bytes = None
+        proxy_byte_order = None
+        proxy_count = None
+        proxy_dtype = None
+        proxy_shape = None
+        if TEST_CBOR_PAYLOAD:
+            try:
+                proxy_result = cbor.loads(response.content)
+            except Exception as e:
+                pytest.fail(
+                    f"Failed to parse CBOR response: {e} - set TEST_CBOR_PAYLOAD=False ?"
+                )
+            # NOTE below that x-activestorage-shape and x-activestorage-count are both arrays
+            #      but x-activestorage-count is kept as a string
+            proxy_bytes = proxy_result["bytes"]
+            proxy_byte_order = proxy_result["byte_order"]
+            proxy_count = json.dumps(proxy_result["count"], separators=(",", ":"))
+            proxy_dtype = proxy_result["dtype"]
+            proxy_shape = proxy_result["shape"]
+        else:
+            proxy_bytes = response.content
+            proxy_byte_order = response.headers["x-activestorage-byte-order"]
+            proxy_count = response.headers["x-activestorage-count"]
+            proxy_dtype = response.headers["x-activestorage-dtype"]
+            proxy_shape = json.loads(response.headers["x-activestorage-shape"])
         return (proxy_bytes, proxy_byte_order, proxy_count, proxy_dtype, proxy_shape)
 
     def serialize_response(response):
@@ -425,9 +447,10 @@ def test_basic_operation(
         proxy_result, operation_result
     ), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
 
-    assert proxy_response.headers["content-length"] == str(
-        len(operation_result.tobytes())
-    )
+    if not TEST_CBOR_PAYLOAD:
+        assert proxy_response.headers["content-length"] == str(
+            len(operation_result.tobytes())
+        )
 
 
 # Separate out these tests since valid offset & size values depend on other parameters so combinatorial param approach is too complicated
