@@ -375,9 +375,7 @@ def test_basic_operation(
         parse_response(proxy_response)
     )
 
-    proxy_result = np.frombuffer(
-        proxy_bytes, dtype=proxy_dtype
-    )
+    proxy_result = np.frombuffer(proxy_bytes, dtype=proxy_dtype)
 
     # Compare to expected result and make sure response fields are sensible - all comparisons should be done as strings
     assert proxy_dtype == (request_data["dtype"] if operation != "count" else "int64")
