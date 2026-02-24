@@ -83,7 +83,7 @@ for i, array_dim in enumerate(Ns):
         print("Starting benchmarks for proxy running on", url)
         for n in tqdm(range(N_repeats)):
             t_start = time.perf_counter()
-            response = requests.post(url + "/v1/sum/", json=request_data, auth=AUTH)
+            response = requests.post(url + "/v2/sum/", json=request_data, auth=AUTH)
             if response.status_code != 200:
                 raise Exception("Proxy request failed. Error message: " + response.text)
             t_end = time.perf_counter()

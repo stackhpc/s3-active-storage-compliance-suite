@@ -1,5 +1,6 @@
 import time
 import datetime
+import cbor2
 import json
 import s3fs
 import requests
@@ -37,10 +38,11 @@ def sum_without_proxy(fs, filename, request_data, expected_ans):
 
 def sum_with_proxy(proxy_url, request_data, expected_ans):
     """Requests sum result from active storage proxy"""
-    response = requests.post(proxy_url + "/v1/sum/", json=request_data, auth=AUTH)
+    response = requests.post(proxy_url + "/v2/sum/", json=request_data, auth=AUTH)
     if response.status_code != 200:
         raise Exception("Proxy request failed. Error message: " + response.text)
-    result = np.frombuffer(response.content, dtype=request_data["dtype"])[0]
+    response_data = cbor2.loads(response.content)
+    result = np.frombuffer(response_data["bytes"], dtype=request_data["dtype"])[0]
     if not np.isclose(result, expected_ans):
         raise Exception(
             f"No-proxy case returned incorrect answer: {result} (expected {expected_ans})"
