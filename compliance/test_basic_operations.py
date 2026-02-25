@@ -124,7 +124,7 @@ def create_test_object(
     ensure_test_bucket_exists(public)
     upload_to_s3(s3_client, object_data, filename, public)
 
-    if TEST_HTTP_OBJECT_STORE:
+    if TEST_API_V2 and TEST_HTTP_OBJECT_STORE:
         # Add data to http so that proxy can use it
         upload_to_http(http_session, object_data, f"{HTTP_SOURCE}/upload/{filename}")
 
@@ -373,7 +373,7 @@ def test_basic_operation(
     # Fetch response from proxy
     auth = None if public else (AWS_ID, AWS_PASSWORD)
     proxy_response = requests.post(
-        f"{PROXY_URL}/v2/{operation}/",
+        f"{PROXY_URL}/v2/{operation}/" if TEST_API_V2 else f"{PROXY_URL}/v1/{operation}/",
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
@@ -391,7 +391,7 @@ def test_basic_operation(
     )
 
     # Fetch same response from proxy using HTTP
-    if TEST_HTTP_OBJECT_STORE:
+    if TEST_API_V2 and TEST_HTTP_OBJECT_STORE:
         http_request_data = build_request("http", f"{HTTP_SOURCE}/{filename}")
         http_auth = (HTTP_USERNAME, HTTP_PASSWORD) if HTTP_USERNAME else None
         http_proxy_response = requests.post(
