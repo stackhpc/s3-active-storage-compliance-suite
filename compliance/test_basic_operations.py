@@ -373,7 +373,11 @@ def test_basic_operation(
     # Fetch response from proxy
     auth = None if public else (AWS_ID, AWS_PASSWORD)
     proxy_response = requests.post(
-        f"{PROXY_URL}/v2/{operation}/" if TEST_API_V2 else f"{PROXY_URL}/v1/{operation}/",
+        (
+            f"{PROXY_URL}/v2/{operation}/"
+            if TEST_API_V2
+            else f"{PROXY_URL}/v1/{operation}/"
+        ),
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
