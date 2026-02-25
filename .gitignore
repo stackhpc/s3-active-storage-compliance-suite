@@ -133,6 +133,7 @@ scratchspace.py
 
 # Test generated files
 testdata/
+scripts/htpasswd
 scripts/testdata/
 scripts/server.crt
 scripts/server.key
