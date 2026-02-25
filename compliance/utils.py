@@ -59,7 +59,7 @@ def apply_public_policy():
 
 
 def upload_to_s3(s3_client, data: bytes, filename: str, public: bool = False) -> None:
-    """Upload a some binary data to an S3 storage bucket"""
+    """Upload some binary data to an S3 storage bucket"""
 
     bucket = get_bucket_name(public)
     stream = io.BytesIO(data)
@@ -82,7 +82,7 @@ def fetch_from_s3(s3_client, filename: str, public: bool = False) -> bytes:
 
 
 def upload_to_http(http_session, data: bytes, url: str) -> None:
-    """Upload a some binary data to a HTTP server"""
+    """Upload some binary data to a HTTP server"""
 
     http_session.put(url, data=data)
     return
