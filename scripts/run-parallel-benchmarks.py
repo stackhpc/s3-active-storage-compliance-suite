@@ -78,9 +78,8 @@ def main(workers, request_count):
         run_timings["chunk-size-MB"] = N_bytes
 
         request_data = {
-            "source": S3_SOURCE,
-            "bucket": str(BUCKET),
-            "object": filename,
+            "interface_type": "s3",
+            "url": f"{S3_SOURCE}/{str(BUCKET)}/{filename}",
             "dtype": str(X.dtype),
         }
 

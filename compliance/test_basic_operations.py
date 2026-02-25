@@ -24,7 +24,12 @@ from .config import (
     MISSING_DATA,
     TEST_BYTE_ORDER,
     TEST_PUBLIC_BUCKET,
-    TEST_CBOR_PAYLOAD,
+    TEST_API_V2,
+    TEST_HTTP_OBJECT_STORE,
+    http_session,
+    HTTP_SOURCE,
+    HTTP_USERNAME,
+    HTTP_PASSWORD,
 )
 from .missing import Missing, ValidMax, ValidMin
 from .mocks import MockResponse
@@ -33,6 +38,7 @@ from .utils import (
     ensure_test_bucket_exists,
     get_bucket_name,
     upload_to_s3,
+    upload_to_http,
 )
 
 
@@ -106,17 +112,21 @@ def generate_object_data(
     return object_data, len(filtered_data)
 
 
-def create_test_s3_object(
+def create_test_object(
     object_data,
     filename,
     public: bool,
 ):
     """
-    Create an S3 object from a list of bytes.
+    Create S3 / HTTP object from a list of bytes.
     """
     # Add data to s3 bucket so that proxy can use it
     ensure_test_bucket_exists(public)
     upload_to_s3(s3_client, object_data, filename, public)
+
+    if TEST_API_V2 and TEST_HTTP_OBJECT_STORE:
+        # Add data to http so that proxy can use it
+        upload_to_http(http_session, object_data, f"{HTTP_SOURCE}/upload/{filename}")
 
 
 def perform_operation(data, operation, axis):
@@ -198,8 +208,8 @@ def create_test_data(
         byte_order,
     )
 
-    # Create an object in S3
-    create_test_s3_object(object_data, filename, public)
+    # Create an object in S3 and HTTP
+    create_test_object(object_data, filename, public)
 
     # Calculate and return the expected result.
     data, operation_result = calculate_expected_result(
@@ -271,11 +281,8 @@ def test_basic_operation(
         public,
     )
 
-    def build_request():
+    def build_request(interface_type, url):
         request_data = {
-            "source": S3_SOURCE,
-            "bucket": get_bucket_name(public),
-            "object": filename,
             "dtype": dtype,
             "offset": offset,
             "size": compressed_size,
@@ -284,6 +291,13 @@ def test_basic_operation(
             "order": order,
             "selection": selection,
         }
+        if TEST_API_V2:
+            request_data["interface_type"] = interface_type
+            request_data["url"] = url
+        else:
+            request_data["source"] = S3_SOURCE
+            request_data["bucket"] = get_bucket_name(public)
+            request_data["object"] = filename
         if compression:
             request_data["compression"] = {"id": compression}
         if filters:
@@ -304,12 +318,12 @@ def test_basic_operation(
         proxy_count = None
         proxy_dtype = None
         proxy_shape = None
-        if TEST_CBOR_PAYLOAD:
+        if TEST_API_V2:
             try:
                 proxy_result = cbor.loads(response.content)
             except Exception as e:
                 pytest.fail(
-                    f"Failed to parse CBOR response: {e} - set TEST_CBOR_PAYLOAD=False ?"
+                    f"Failed to parse CBOR response: {e} - set TEST_API_V2=False ?"
                 )
             # NOTE below that x-activestorage-shape and x-activestorage-count are both arrays
             #      but x-activestorage-count is kept as a string
@@ -338,8 +352,9 @@ def test_basic_operation(
             }
         )
 
-    request_data = build_request()
-
+    request_data = build_request(
+        "s3", f"{S3_SOURCE}/{get_bucket_name(public)}/{filename}"
+    )
     # print(request_data)
 
     # Mock proxy responses if url not set
@@ -358,7 +373,11 @@ def test_basic_operation(
     # Fetch response from proxy
     auth = None if public else (AWS_ID, AWS_PASSWORD)
     proxy_response = requests.post(
-        f"{PROXY_URL}/v2/{operation}/",
+        (
+            f"{PROXY_URL}/v2/{operation}/"
+            if TEST_API_V2
+            else f"{PROXY_URL}/v1/{operation}/"
+        ),
         json=request_data,
         auth=auth,
         verify=(PROXY_CA_CERT or True),
@@ -374,6 +393,27 @@ def test_basic_operation(
     proxy_bytes, proxy_byte_order, proxy_count, proxy_dtype, proxy_shape = (
         parse_response(proxy_response)
     )
+
+    # Fetch same response from proxy using HTTP
+    if TEST_API_V2 and TEST_HTTP_OBJECT_STORE:
+        http_request_data = build_request("http", f"{HTTP_SOURCE}/{filename}")
+        http_auth = (HTTP_USERNAME, HTTP_PASSWORD) if HTTP_USERNAME else None
+        http_proxy_response = requests.post(
+            f"{PROXY_URL}/v2/{operation}/",
+            json=http_request_data,
+            auth=http_auth,
+            verify=(PROXY_CA_CERT or True),
+        )
+        # For debugging failed tests
+        if http_proxy_response.status_code != 200:
+            print(http_proxy_response.text)
+
+        # Parse and serialize the response to the HTTP request
+        http_result = serialize_response(http_proxy_response)
+        # Parse and serialize the response to the S3 request
+        s3_result = serialize_response(proxy_response)
+        # Check S3 and HTTP gave the same results
+        assert s3_result == http_result
 
     proxy_result = np.frombuffer(proxy_bytes, dtype=proxy_dtype)
 
@@ -415,7 +455,7 @@ def test_basic_operation(
         proxy_result, operation_result
     ), f"actual:\n{proxy_result}\n!=\nexpected:\n{operation_result}"
 
-    if not TEST_CBOR_PAYLOAD:
+    if not TEST_API_V2:
         assert proxy_response.headers["content-length"] == str(
             len(operation_result.tobytes())
         )

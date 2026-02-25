@@ -1,6 +1,7 @@
 import boto3
 import numpy as np
 import numpy.ma as ma
+import requests
 
 from .missing import MissingValue, MissingValues, ValidMax, ValidMin, ValidRange
 
@@ -71,7 +72,24 @@ TEST_BYTE_ORDER = True
 # Whether to test data stored in publicly accessible buckets.
 TEST_PUBLIC_BUCKET = True
 
-# Whether to test for the newer style CBOR payload results.
-# This functionality replaces the x-activestorage-* header responses.
-# TEST_CBOR_PAYLOAD = False
-TEST_CBOR_PAYLOAD = True
+# Whether to use the newer interface_type and URL API for proxy requests
+# along with the newer style CBOR payload responses
+# i.e. v2 of the API
+TEST_API_V2 = True
+
+# Whether to test HTTP object store
+# This requires TEST_API_V2 = True
+TEST_HTTP_OBJECT_STORE = True
+# Location of upstream HTTP data
+HTTP_SOURCE = "http://localhost:8000"
+# Location of upstream HTTP data (location requires authentication)
+# HTTP_SOURCE = "http://localhost:8000/private"
+# Username for HTTP basic authentication
+HTTP_USERNAME = "admin"
+# Password for HTTP basic authentication
+HTTP_PASSWORD = "admin"
+
+http_session = None
+if TEST_HTTP_OBJECT_STORE:
+    http_session = requests.Session()
+    http_session.auth = (HTTP_USERNAME, HTTP_PASSWORD)
