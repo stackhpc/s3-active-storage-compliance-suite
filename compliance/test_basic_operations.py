@@ -294,6 +294,8 @@ def test_basic_operation(
         if TEST_API_V2:
             request_data["interface_type"] = interface_type
             request_data["url"] = url
+            request_data["option_shape_as_bytes"] = True
+            request_data["option_count_as_bytes"] = True
         else:
             request_data["source"] = S3_SOURCE
             request_data["bucket"] = get_bucket_name(public)
@@ -325,17 +327,62 @@ def test_basic_operation(
                 pytest.fail(
                     f"Failed to parse CBOR response: {e} - set TEST_API_V2=False ?"
                 )
-            # NOTE below that x-activestorage-shape and x-activestorage-count are both arrays
-            #      but x-activestorage-count is kept as a string
             proxy_bytes = proxy_result["bytes"]
             proxy_byte_order = proxy_result["byte_order"]
-            proxy_count = json.dumps(proxy_result["count"], separators=(",", ":"))
+            proxy_count = proxy_result["count"]
             proxy_dtype = proxy_result["dtype"]
             proxy_shape = proxy_result["shape"]
+
+            if "count_as_bytes" in proxy_result:
+                if len(proxy_result["count_as_bytes"]) > 0:
+                    # The count value has returned as a byte array,
+                    # so we need to convert it back to an int or list of ints here.
+                    count_as_bytes = proxy_result["count_as_bytes"]
+                    # This method parses as ints
+                    proxy_count_test_native = [
+                        int.from_bytes(chunk, byteorder="little", signed=True)
+                        for i in range(
+                            0, len(count_as_bytes) - (len(count_as_bytes) % 8), 8
+                        )
+                        for chunk in [count_as_bytes[i : i + 8]]  # noqa: E203
+                    ]
+                    # This method parses as int64 numpy array,
+                    # which should give the same result as above but it won't JSON serialize.
+                    # This is ideal if numpy is your target consumer, since it avoids unnecessary conversions to and from lists of ints.
+                    proxy_count_test_numpy = list(
+                        np.frombuffer(count_as_bytes, dtype=np.int64)
+                    )
+                    # The two test equivalent, but JSON can't serialize numpy int64,
+                    # so we need to convert to a list of ints for comparison with the proxy count field above, which is parsed from JSON.
+                    assert (
+                        proxy_count_test_native == proxy_count_test_numpy
+                    ), f"Count parsing mismatch: {proxy_count_test_native} != {proxy_count_test_numpy}"
+                    proxy_count = proxy_count_test_native
+
+            if "shape_as_bytes" in proxy_result:
+                if len(proxy_result["shape_as_bytes"]) > 0:
+                    # The shape value has returned as a byte array,
+                    # so we need to convert it back to a list of unsigned ints here.
+                    shape_as_bytes = proxy_result["shape_as_bytes"]
+                    proxy_shape_test_native = [
+                        int.from_bytes(chunk, byteorder="little", signed=False)
+                        for i in range(
+                            0, len(shape_as_bytes) - (len(shape_as_bytes) % 8), 8
+                        )
+                        for chunk in [shape_as_bytes[i : i + 8]]  # noqa: E203
+                    ]
+                    proxy_shape_test_numpy = list(
+                        np.frombuffer(shape_as_bytes, dtype=np.uint64)
+                    )
+                    assert (
+                        proxy_shape_test_native == proxy_shape_test_numpy
+                    ), f"Shape parsing mismatch: {proxy_shape_test_native} != {proxy_shape_test_numpy}"
+                    proxy_shape = proxy_shape_test_native
+
         else:
             proxy_bytes = response.content
             proxy_byte_order = response.headers["x-activestorage-byte-order"]
-            proxy_count = response.headers["x-activestorage-count"]
+            proxy_count = json.loads(response.headers["x-activestorage-count"])
             proxy_dtype = response.headers["x-activestorage-dtype"]
             proxy_shape = json.loads(response.headers["x-activestorage-shape"])
         return (proxy_bytes, proxy_byte_order, proxy_count, proxy_dtype, proxy_shape)
@@ -445,7 +492,8 @@ def test_basic_operation(
 
         # Strip whitespace from between items in stringified list
         expected = str(expected).replace(" ", "")
-
+        # Do the same for the proxy count, for direct comparison
+        proxy_count = str(proxy_count).replace(" ", "")
         assert proxy_count == expected
 
     if TEST_BYTE_ORDER:
